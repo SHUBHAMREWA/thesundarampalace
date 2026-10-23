@@ -22,6 +22,17 @@ function parseTime(time: string): [number, number] {
   return [Number(m[1]), Number(m[2])];
 }
 
+export function isDateKey(value: string): boolean {
+  if (!DATE_RE.test(value)) return false;
+  const [y, m, d] = parseDate(value);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
+export function isTimeOfDay(value: string): boolean {
+  return TIME_RE.test(value);
+}
+
 /** The UTC instant for a wall-clock date + time in Asia/Kolkata. */
 export function istToUtc(date: string, time: string): Date {
   const [y, mo, d] = parseDate(date);
@@ -81,4 +92,50 @@ export function financialYearLabel(instant: Date = new Date()): string {
 /** Format an instant in Asia/Kolkata with a date-fns pattern. */
 export function formatIST(instant: Date, pattern = "d MMM yyyy, h:mm a"): string {
   return formatDate(new TZDate(instant.getTime(), BUSINESS_TIME_ZONE), pattern);
+}
+
+// ─── Calendar dates (`@db.Date` columns) ─────────────────────────────────────
+// Prisma returns DATE columns as UTC-midnight Date objects. These helpers keep
+// them as "YYYY-MM-DD" strings so no time zone can shift the day.
+
+/** "YYYY-MM-DD" of a DATE column value. */
+export function dateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** DATE column value for "YYYY-MM-DD". */
+export function dateFromKey(key: string): Date {
+  parseDate(key);
+  return new Date(`${key}T00:00:00.000Z`);
+}
+
+/** Today's date in Asia/Kolkata as "YYYY-MM-DD". */
+export function todayIST(now: Date = new Date()): string {
+  return formatIST(now, "yyyy-MM-dd");
+}
+
+/** The Asia/Kolkata calendar date of an instant, as "YYYY-MM-DD". */
+export function istDateKey(instant: Date): string {
+  return formatIST(instant, "yyyy-MM-dd");
+}
+
+export function addDays(key: string, days: number): string {
+  return dateKey(new Date(dateFromKey(key).getTime() + days * 86_400_000));
+}
+
+/** Whole days from `from` to `to` (both "YYYY-MM-DD"); negative when `to` is earlier. */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((dateFromKey(to).getTime() - dateFromKey(from).getTime()) / 86_400_000);
+}
+
+/** Format a DATE column value without any time-zone shift. */
+export function formatDateKey(key: string | Date, pattern = "d MMM yyyy"): string {
+  const k = typeof key === "string" ? key : dateKey(key);
+  const [y, m, d] = parseDate(k);
+  return formatDate(new Date(y, m - 1, d), pattern);
+}
+
+/** Short financial-year label for GST document numbers: "2026-27" → "26-27". */
+export function shortFinancialYear(label: string): string {
+  return label.slice(2);
 }

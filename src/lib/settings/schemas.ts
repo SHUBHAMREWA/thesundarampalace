@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+// Relative import: the seed script and Playwright setup load this file too.
+import { isGstStateCode, isValidGstin } from "../validation/gst";
+
 /**
  * Typed settings sections stored in `site_setting`. Business facts default to
  * null and are filled in by the business (docs/missing-business-info.md);
@@ -25,8 +28,9 @@ const localizedNullable = z
 export const businessSettingsSchema = z.object({
   displayName: z.string().trim().min(1).max(120),
   legalName: nullableText,
-  gstin: nullableText,
-  stateCode: nullableText,
+  gstin: nullableText.refine((v) => !v || isValidGstin(v), "Enter a valid 15-character GSTIN"),
+  /** GST state code of the venue (first two digits of the GSTIN). */
+  stateCode: nullableText.refine((v) => !v || isGstStateCode(v), "Choose the venue's state"),
   address: nullableText,
   city: nullableText,
   /** E.164, validated by the settings form with the shared phone schema. */
@@ -52,9 +56,31 @@ export const contactSettingsSchema = z.object({
   youtubeUrl: nullableUrl,
 });
 
+const referencePrefix = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z0-9]+(-[A-Z0-9]+)*$/, "Letters, digits and hyphens only")
+  .max(8);
+
+/**
+ * GST invoice numbers may have at most 16 characters (letters, digits, "-"
+ * and "/"). Ours are PREFIX/26-27/0001, so the prefix is kept to 4 characters.
+ * The accountant confirms the format before the first real invoice.
+ */
+const gstDocumentPrefix = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z0-9]{1,4}$/, "1–4 letters or digits (GST numbers are limited to 16 characters)");
+
 export const numberingSettingsSchema = z.object({
-  leadPrefix: z.string().min(1),
-  bookingPrefix: z.string().min(1),
+  leadPrefix: referencePrefix,
+  bookingPrefix: referencePrefix,
+  customerPrefix: referencePrefix,
+  receiptPrefix: referencePrefix,
+  invoicePrefix: gstDocumentPrefix,
+  creditNotePrefix: gstDocumentPrefix,
 });
 
 export const enquirySettingsSchema = z.object({
@@ -68,10 +94,57 @@ export const enquirySettingsSchema = z.object({
   consentNoticeVersion: z.string().min(1).max(40),
 });
 
+const percent = z
+  .string()
+  .trim()
+  .regex(/^\d{1,3}(\.\d{1,2})?$/, "Enter a percentage, e.g. 25")
+  .refine((v) => Number(v) <= 100, "At most 100%");
+
+/**
+ * Booking policy numbers. Every default here is an editable placeholder, not
+ * a business fact: the owner confirms them (docs/missing-business-info.md §4).
+ */
 export const bookingPolicySettingsSchema = z.object({
   /** Tentative hold duration in hours (default 72; confirm with business). */
   holdDurationHours: z.number().int().min(1).max(24 * 30),
   holdReminderHoursBefore: z.number().int().min(0).max(72),
+  /** Guaranteed plates lock this many days before each function. */
+  guestCountLockDays: z.number().int().min(0).max(90),
+  /** Suggested advance on confirmation, as a percentage of the accepted total (null = no suggestion). */
+  advancePercent: percent.nullable(),
+  /** Days a quotation stays valid (printed on the quotation). */
+  quotationValidityDays: z.number().int().min(1).max(365),
+  /** Cancellation policy snapshotted onto bookings at confirmation. */
+  defaultCancellationPolicyId: z.string().nullable(),
+  /** Refund the shortfall when fewer plates are served than guaranteed. */
+  refundPlateShortfall: z.boolean(),
+});
+
+/** Tax behaviour. Rates and SAC codes live in tax categories, never in code. */
+export const taxSettingsSchema = z.object({
+  /** New quotations treat entered prices as GST-inclusive. */
+  pricesIncludeTaxByDefault: z.boolean(),
+  /** Round quotation and invoice grand totals to the nearest rupee (difference shown as round-off). */
+  roundGrandTotal: z.boolean(),
+  /** Printed under invoice totals, e.g. "Whether tax is payable under reverse charge: No". */
+  invoiceNotes: nullableText,
+});
+
+/** Wording printed on generated documents. */
+export const documentSettingsSchema = z.object({
+  /** Short line under the business name in document headers. */
+  tagline: nullableText,
+  footerText: nullableText,
+  quotationTerms: nullableText,
+  paymentTerms: nullableText,
+  bookingConditions: nullableText,
+  /** Bank details printed on quotations and statements (e.g. account name, number, IFSC, UPI ID). */
+  bankDetails: nullableText,
+  /**
+   * Largest private document (ID copy, photo) staff may upload, in MB. Stored
+   * in the database. At most 4: Vercel rejects request bodies over 4.5 MB.
+   */
+  maxUploadMb: z.number().int().min(1).max(4),
 });
 
 export const SETTINGS_SECTIONS = {
@@ -80,6 +153,8 @@ export const SETTINGS_SECTIONS = {
   numbering: numberingSettingsSchema,
   enquiry: enquirySettingsSchema,
   bookingPolicy: bookingPolicySettingsSchema,
+  tax: taxSettingsSchema,
+  documents: documentSettingsSchema,
 } as const;
 
 export type SettingsSectionKey = keyof typeof SETTINGS_SECTIONS;
@@ -110,14 +185,39 @@ export const DEFAULT_SETTINGS: { [K in SettingsSectionKey]: SettingsSection<K> }
     facebookUrl: null,
     youtubeUrl: null,
   },
-  numbering: { leadPrefix: "SP-L", bookingPrefix: "SP-B" },
+  numbering: {
+    leadPrefix: "SP-L",
+    bookingPrefix: "SP-B",
+    customerPrefix: "SP-C",
+    receiptPrefix: "SP-R",
+    invoicePrefix: "SP",
+    creditNotePrefix: "SPCN",
+  },
   enquiry: {
     duplicateWindowDays: 30,
     responseTimePromise: null,
     defaultAssigneeId: null,
     consentNoticeVersion: "2026-10-draft",
   },
-  bookingPolicy: { holdDurationHours: 72, holdReminderHoursBefore: 12 },
+  bookingPolicy: {
+    holdDurationHours: 72,
+    holdReminderHoursBefore: 12,
+    guestCountLockDays: 7,
+    advancePercent: null,
+    quotationValidityDays: 15,
+    defaultCancellationPolicyId: null,
+    refundPlateShortfall: false,
+  },
+  tax: { pricesIncludeTaxByDefault: false, roundGrandTotal: false, invoiceNotes: null },
+  documents: {
+    tagline: null,
+    footerText: null,
+    quotationTerms: null,
+    paymentTerms: null,
+    bookingConditions: null,
+    bankDetails: null,
+    maxUploadMb: 4,
+  },
 };
 
 export const SETTINGS_LABELS: Record<SettingsSectionKey, string> = {
@@ -126,4 +226,6 @@ export const SETTINGS_LABELS: Record<SettingsSectionKey, string> = {
   numbering: "Reference numbering",
   enquiry: "Enquiries",
   bookingPolicy: "Booking policy",
+  tax: "Tax and invoices",
+  documents: "Document wording",
 };

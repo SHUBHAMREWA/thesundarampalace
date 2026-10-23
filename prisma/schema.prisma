@@ -2,6 +2,7 @@
 // Read docs/database-design.md and the db-change-safety skill before changing.
 // Phase 1: identity, permissions, settings, numbering, audit.
 // Phase 2: website CMS, venue facts, public menus, leads, notifications.
+// Phase 3: customers, private files, slots, bookings, quotations, money, documents.
 
 generator client {
   provider = "prisma-client"
@@ -30,8 +31,10 @@ model User {
   accounts      Account[]
   twoFactors    TwoFactor[]
   roles         UserRole[]
-  assignedLeads Lead[]         @relation("LeadAssignee")
+  assignedLeads Lead[]            @relation("LeadAssignee")
   notifications Notification[]
+  ownedBookings Booking[]         @relation("BookingOwner")
+  subEvents     BookingSubEvent[] @relation("SubEventAssignee")
 
   @@map("user")
 }
@@ -369,6 +372,12 @@ model Hall {
   isComposite           Boolean              @default(false)
   capacities            HallLayoutCapacity[]
   leads                 Lead[]
+  /// Phase 3: a composite space ("Hall A + Hall B") occupies each member hall.
+  members               HallComposition[]    @relation("CompositeHall")
+  memberOf              HallComposition[]    @relation("MemberHall")
+  slotDefinitions       SlotDefinition[]
+  subEvents             BookingSubEvent[]
+  occupancies           SlotOccupancy[]
   createdAt             DateTime             @default(now()) @db.Timestamptz(3)
   updatedAt             DateTime             @updatedAt @db.Timestamptz(3)
 
@@ -390,15 +399,16 @@ model HallLayoutCapacity {
 
 /// Menus shared by the website (publicVisible) and, from Phase 3, the CRM.
 model Menu {
-  id            String     @id @default(cuid())
+  id            String        @id @default(cuid())
   name          Json
   category      String // veg | jain | non_veg | custom
   description   Json?
-  publicVisible Boolean    @default(false)
-  sortOrder     Int        @default(0)
+  publicVisible Boolean       @default(false)
+  sortOrder     Int           @default(0)
   items         MenuItem[]
-  createdAt     DateTime   @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime   @updatedAt @db.Timestamptz(3)
+  packages      MenuPackage[]
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @db.Timestamptz(3)
 
   @@map("menu")
 }
@@ -431,21 +441,29 @@ model DecorTheme {
 
 /// Public packages. Prices show only when an administrator enables it.
 model Package {
-  id              String   @id @default(cuid())
-  slug            String   @unique
+  id              String       @id @default(cuid())
+  slug            String       @unique
   name            Json
   description     Json?
   inclusions      Json? // Localized, one item per line
   addOns          Json?
   terms           Json?
   eventTypeKeys   Json
-  publicPrice     Decimal? @db.Decimal(12, 2)
+  publicPrice     Decimal?     @db.Decimal(12, 2)
   publicPriceNote Json?
-  showPublicPrice Boolean  @default(false)
-  published       Boolean  @default(false)
-  sortOrder       Int      @default(0)
-  createdAt       DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+  showPublicPrice Boolean      @default(false)
+  published       Boolean      @default(false)
+  sortOrder       Int          @default(0)
+  /// CRM pricing (Phase 3). Quotations copy these values; later edits never change them.
+  crmPrice        Decimal?     @db.Decimal(12, 2)
+  perPlateRate    Decimal?     @db.Decimal(12, 2)
+  minPlates       Int?
+  taxCategoryId   String?
+  taxCategory     TaxCategory? @relation(fields: [taxCategoryId], references: [id], onDelete: Restrict)
+  active          Boolean      @default(true)
+  bookings        Booking[]
+  createdAt       DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime     @updatedAt @db.Timestamptz(3)
 
   @@map("package")
 }
@@ -519,6 +537,10 @@ model Lead {
   lostReasonKey     String?
   lastActivityAt    DateTime       @default(now()) @db.Timestamptz(3)
   deletedAt         DateTime?      @db.Timestamptz(3)
+  /// Set when the lead is converted (Phase 3).
+  customerId        String?
+  customer          Customer?      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  bookings          Booking[]
   activities        LeadActivity[]
   createdAt         DateTime       @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
@@ -527,6 +549,7 @@ model Lead {
   @@index([statusKey, createdAt])
   @@index([assignedToId, followUpAt])
   @@index([createdAt])
+  @@index([customerId])
   @@map("lead")
 }
 
@@ -609,4 +632,850 @@ model ConversionEvent {
 
   @@index([type, createdAt])
   @@map("conversion_event")
+}
+
+// ─── Customers and private files (Phase 3) ───────────────────────────────────
+
+/// Private customer records: never on the website, never in public URLs.
+/// Age is computed from dateOfBirth, never stored.
+model Customer {
+  id              String             @id @default(cuid())
+  reference       String             @unique
+  fullName        String
+  mobile          String // E.164
+  whatsapp        String?
+  email           String?
+  gstin           String?
+  companyName     String?
+  maritalStatus   String? // single | married | other | prefer_not_to_say
+  dateOfBirth     DateTime?          @db.Date
+  anniversary     DateTime?          @db.Date
+  spouseName      String?
+  categoryKey     String? // lookup_value(customer_category).key
+  professionKey   String? // lookup_value(profession).key
+  professionOther String?
+  stateCode       String? // GST state code; default place of supply
+  city            String?
+  locality        String?
+  address         String?
+  notes           String?
+  createdById     String?
+  /// Set when this record was merged into another customer.
+  mergedIntoId    String?
+  deletedAt       DateTime?          @db.Timestamptz(3)
+  anonymizedAt    DateTime?          @db.Timestamptz(3)
+  leads           Lead[]
+  bookings        Booking[]
+  documents       CustomerDocument[]
+  createdAt       DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@index([mobile])
+  @@index([fullName])
+  @@index([deletedAt, createdAt])
+  @@map("customer")
+}
+
+/// Possible duplicates waiting for a person to decide. Merging is never automatic.
+model CustomerMergeReview {
+  id          String    @id @default(cuid())
+  primaryId   String
+  duplicateId String
+  reason      String // SAME_MOBILE | MANUAL
+  status      String    @default("PENDING") // PENDING | MERGED | DISMISSED
+  note        String?
+  createdById String?
+  decidedById String?
+  decidedAt   DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@unique([primaryId, duplicateId])
+  @@index([status, createdAt])
+  @@map("customer_merge_review")
+}
+
+/// Photos and identity documents (PAN, masked Aadhaar, other). The bytes live
+/// in the private store (PrivateBlob); there is no column for ID numbers.
+model CustomerDocument {
+  id           String           @id @default(cuid())
+  customerId   String
+  customer     Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  partyId      String?
+  party        BrideGroomParty? @relation(fields: [partyId], references: [id], onDelete: Restrict)
+  category     String // PHOTO | PAN | AADHAAR_MASKED | OTHER
+  label        String?
+  purpose      String?
+  storageKey   String           @unique
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  sha256       String
+  uploadedById String?
+  deletedAt    DateTime?        @db.Timestamptz(3)
+  deletedById  String?
+  createdAt    DateTime         @default(now()) @db.Timestamptz(3)
+
+  @@index([customerId, createdAt])
+  @@index([partyId])
+  @@map("customer_document")
+}
+
+/// Private file bytes (architecture.md ADR-07). There is no URL for these:
+/// they are streamed only by permission-checked, audit-logged routes.
+model PrivateBlob {
+  key       String   @id
+  data      Bytes
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@map("private_blob")
+}
+
+// ─── Venue booking rules (Phase 3) ───────────────────────────────────────────
+
+/// "Hall A + Hall B": booking the composite hall occupies every member hall.
+model HallComposition {
+  compositeHallId String
+  compositeHall   Hall   @relation("CompositeHall", fields: [compositeHallId], references: [id], onDelete: Cascade)
+  memberHallId    String
+  memberHall      Hall   @relation("MemberHall", fields: [memberHallId], references: [id], onDelete: Restrict)
+
+  @@id([compositeHallId, memberHallId])
+  @@index([memberHallId])
+  @@map("hall_composition")
+}
+
+/// Slot times are Asia/Kolkata wall-clock times from the business. An end
+/// time at or before the start time means the slot ends the next day.
+model SlotDefinition {
+  id        String            @id @default(cuid())
+  hallId    String? // null = every hall
+  hall      Hall?             @relation(fields: [hallId], references: [id], onDelete: Cascade)
+  name      String
+  startTime String // HH:mm
+  endTime   String // HH:mm
+  active    Boolean           @default(true)
+  sortOrder Int               @default(0)
+  subEvents BookingSubEvent[]
+  createdAt DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime          @updatedAt @db.Timestamptz(3)
+
+  @@index([hallId, active, sortOrder])
+  @@map("slot_definition")
+}
+
+// ─── Catalog and pricing (Phase 3) ───────────────────────────────────────────
+
+/// A kind of taxable supply (e.g. hall rental, catering) with its SAC code.
+/// Rates are versioned in TaxRate; both must be confirmed by the accountant.
+model TaxCategory {
+  id           String        @id @default(cuid())
+  name         String
+  sacCode      String
+  notes        String?
+  active       Boolean       @default(true)
+  rates        TaxRate[]
+  services     ServiceItem[]
+  packages     Package[]
+  menuPackages MenuPackage[]
+  createdAt    DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime      @updatedAt @db.Timestamptz(3)
+
+  @@map("tax_category")
+}
+
+/// GST rate from a date onwards. New quotation lines use the rate in force on
+/// the day they are priced; issued documents keep the rate they were issued with.
+model TaxRate {
+  id            String      @id @default(cuid())
+  taxCategoryId String
+  taxCategory   TaxCategory @relation(fields: [taxCategoryId], references: [id], onDelete: Restrict)
+  ratePercent   Decimal     @db.Decimal(5, 2)
+  effectiveFrom DateTime    @db.Date
+  createdById   String?
+  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
+
+  @@unique([taxCategoryId, effectiveFrom])
+  @@map("tax_rate")
+}
+
+/// Chargeable services for quotations (hall rental, décor, lighting, …). No room services.
+model ServiceItem {
+  id            String      @id @default(cuid())
+  name          String
+  categoryKey   String // lookup_value(service_category).key
+  description   String?
+  unit          String // e.g. "per event", "per hour"
+  defaultPrice  Decimal?    @db.Decimal(12, 2)
+  taxCategoryId String
+  taxCategory   TaxCategory @relation(fields: [taxCategoryId], references: [id], onDelete: Restrict)
+  active        Boolean     @default(true)
+  sortOrder     Int         @default(0)
+  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime    @updatedAt @db.Timestamptz(3)
+
+  @@index([active, sortOrder])
+  @@map("service_item")
+}
+
+/// A priced menu: per-plate rate plus how many items guests choose per course.
+model MenuPackage {
+  id             String                  @id @default(cuid())
+  menuId         String
+  menu           Menu                    @relation(fields: [menuId], references: [id], onDelete: Restrict)
+  name           String
+  perPlateRate   Decimal                 @db.Decimal(12, 2)
+  minPlates      Int?
+  /// [{ course: "starters", choose: 3 }] — items come from the menu's course.
+  selectionRules Json
+  taxCategoryId  String
+  taxCategory    TaxCategory             @relation(fields: [taxCategoryId], references: [id], onDelete: Restrict)
+  active         Boolean                 @default(true)
+  sortOrder      Int                     @default(0)
+  selections     SubEventMenuSelection[]
+  createdAt      DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime                @updatedAt @db.Timestamptz(3)
+
+  @@index([menuId])
+  @@map("menu_package")
+}
+
+enum PricingRuleKind {
+  SEASON
+  WEEKDAY
+  DATE
+}
+
+enum AdjustmentType {
+  PERCENT
+  AMOUNT
+}
+
+/// Season / weekday / named-date adjustments. Applied only when a new
+/// quotation line is priced; never to existing quotations or invoices.
+model PricingRule {
+  id              String          @id @default(cuid())
+  name            String
+  kind            PricingRuleKind
+  startDate       DateTime?       @db.Date
+  endDate         DateTime?       @db.Date
+  weekdays        Json? // [0..6], 0 = Sunday
+  dates           Json? // ["2026-11-20", …]
+  adjustmentType  AdjustmentType
+  adjustmentValue Decimal         @db.Decimal(12, 2) // may be negative (a discount)
+  appliesTo       String // ALL | PLATES | PACKAGE | SERVICE
+  active          Boolean         @default(true)
+  sortOrder       Int             @default(0)
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @db.Timestamptz(3)
+
+  @@map("pricing_rule")
+}
+
+/// Refund slabs [{ daysBeforeEventMin, refundPercent }], snapshotted onto a booking when it is confirmed.
+model CancellationPolicy {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  slabs       Json
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("cancellation_policy")
+}
+
+// ─── Bookings (Phase 3) ──────────────────────────────────────────────────────
+
+enum BookingStatus {
+  ENQUIRY_HOLD
+  TENTATIVE
+  QUOTATION_SENT
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ReservationState {
+  HOLD
+  TENTATIVE
+  CONFIRMED
+  RELEASED
+  CANCELLED
+}
+
+/// Totals are never stored here: they come from the accepted quotation,
+/// post-event charges and the ledger.
+model Booking {
+  id                         String                 @id @default(cuid())
+  reference                  String                 @unique
+  customerId                 String
+  customer                   Customer               @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  leadId                     String?
+  lead                       Lead?                  @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  mainEventName              String
+  mainEventTypeKey           String
+  status                     BookingStatus          @default(ENQUIRY_HOLD)
+  /// First and last sub-event dates, maintained by the booking service.
+  startDate                  DateTime?              @db.Date
+  endDate                    DateTime?              @db.Date
+  expectedGuests             Int?
+  packageId                  String?
+  package                    Package?               @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  ownerId                    String?
+  owner                      User?                  @relation("BookingOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  placeOfSupplyStateCode     String?
+  acceptedQuotationId        String?                @unique
+  acceptedQuotation          QuotationVersion?      @relation("AcceptedQuotation", fields: [acceptedQuotationId], references: [id], onDelete: Restrict)
+  cancellationPolicySnapshot Json?
+  depositRequired            Decimal?               @db.Decimal(12, 2)
+  notes                      String?
+  internalInstructions       String?
+  confirmedAt                DateTime?              @db.Timestamptz(3)
+  confirmedById              String?
+  cancelledAt                DateTime?              @db.Timestamptz(3)
+  /// { reason, daysBefore, slabPercent, computedRefund, agreedRefund, overridden }
+  cancellation               Json?
+  createdById                String?
+  deletedAt                  DateTime?              @db.Timestamptz(3)
+  subEvents                  BookingSubEvent[]
+  parties                    BrideGroomParty[]
+  quotations                 QuotationVersion[]     @relation("BookingQuotations")
+  ledger                     LedgerEntry[]
+  instalments                PaymentInstalment[]
+  depositEntries             DepositEntry[]
+  postEventCharges           PostEventCharge[]
+  invoices                   Invoice[]
+  creditNotes                CreditNote[]
+  statusHistory              BookingStatusHistory[]
+  documents                  GeneratedDocument[]
+  createdAt                  DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime               @updatedAt @db.Timestamptz(3)
+
+  @@index([customerId])
+  @@index([status, startDate])
+  @@index([startDate])
+  @@index([ownerId])
+  @@map("booking")
+}
+
+/// One function of a booking (haldi, sangeet, wedding, …) with its own date and hall.
+model BookingSubEvent {
+  id                  String                 @id @default(cuid())
+  bookingId           String
+  booking             Booking                @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  name                String
+  eventTypeKey        String // lookup_value(sub_event_type).key
+  date                DateTime               @db.Date
+  hallId              String
+  hall                Hall                   @relation(fields: [hallId], references: [id], onDelete: Restrict)
+  slotDefinitionId    String?
+  slotDefinition      SlotDefinition?        @relation(fields: [slotDefinitionId], references: [id], onDelete: SetNull)
+  startsAt            DateTime               @db.Timestamptz(3)
+  endsAt              DateTime               @db.Timestamptz(3)
+  expectedGuests      Int?
+  assignedToId        String?
+  assignedTo          User?                  @relation("SubEventAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  specialInstructions String?
+  internalNotes       String?
+  dietaryNotes        String?
+  sortOrder           Int                    @default(0)
+  reservation         SlotReservation?
+  menuSelection       SubEventMenuSelection?
+  postEventCharges    PostEventCharge[]
+  createdAt           DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime               @updatedAt @db.Timestamptz(3)
+
+  @@index([bookingId, sortOrder])
+  @@index([hallId, startsAt])
+  @@index([date])
+  @@index([assignedToId, date])
+  @@map("booking_sub_event")
+}
+
+/// The hall time a sub-event holds. Expired holds are released (lazily on
+/// read and by the hourly job); a hold on a taken slot is a waitlist entry.
+model SlotReservation {
+  id                 String           @id @default(cuid())
+  subEventId         String           @unique
+  subEvent           BookingSubEvent  @relation(fields: [subEventId], references: [id], onDelete: Cascade)
+  hallId             String
+  startsAt           DateTime         @db.Timestamptz(3)
+  endsAt             DateTime         @db.Timestamptz(3)
+  state              ReservationState
+  holdExpiresAt      DateTime?        @db.Timestamptz(3)
+  holdReminderSentAt DateTime?        @db.Timestamptz(3)
+  waitlistPosition   Int?
+  overrideReason     String?
+  overrideById       String?
+  occupancies        SlotOccupancy[]
+  createdAt          DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime         @updatedAt @db.Timestamptz(3)
+
+  @@index([state, holdExpiresAt])
+  @@index([hallId, startsAt])
+  @@map("slot_reservation")
+}
+
+/// One row per physical hall (composites expand to their members), with the
+/// setup/teardown buffers applied. The exclusion constraint that stops two
+/// confirmed bookings overlapping lives on this table (raw SQL migration).
+model SlotOccupancy {
+  id                String           @id @default(cuid())
+  reservationId     String
+  reservation       SlotReservation  @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  physicalHallId    String
+  physicalHall      Hall             @relation(fields: [physicalHallId], references: [id], onDelete: Restrict)
+  effectiveStartsAt DateTime         @db.Timestamptz(3)
+  effectiveEndsAt   DateTime         @db.Timestamptz(3)
+  state             ReservationState
+  allowOverlap      Boolean          @default(false)
+
+  @@index([physicalHallId, effectiveStartsAt])
+  @@index([reservationId])
+  @@map("slot_occupancy")
+}
+
+enum PartyRole {
+  BRIDE
+  GROOM
+}
+
+model BrideGroomParty {
+  id        String             @id @default(cuid())
+  bookingId String
+  booking   Booking            @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  role      PartyRole
+  fullName  String
+  mobile    String?
+  email     String?
+  altPhone  String?
+  notes     String?
+  documents CustomerDocument[]
+  createdAt DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@unique([bookingId, role])
+  @@map("bride_groom_party")
+}
+
+/// Append-only.
+model BookingStatusHistory {
+  id         String         @id @default(cuid())
+  bookingId  String
+  booking    Booking        @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  fromStatus BookingStatus?
+  toStatus   BookingStatus
+  reason     String?
+  actorId    String?
+  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
+
+  @@index([bookingId, createdAt])
+  @@map("booking_status_history")
+}
+
+/// The menu chosen for a sub-event; `snapshot` keeps the items and rate as agreed.
+model SubEventMenuSelection {
+  id                 String          @id @default(cuid())
+  subEventId         String          @unique
+  subEvent           BookingSubEvent @relation(fields: [subEventId], references: [id], onDelete: Cascade)
+  menuPackageId      String
+  menuPackage        MenuPackage     @relation(fields: [menuPackageId], references: [id], onDelete: Restrict)
+  /// { menuName, category, packageName, perPlateRate, minPlates, items: [{ course, name }] }
+  snapshot           Json
+  guaranteedPlates   Int
+  actualPlates       Int?
+  actualRecordedAt   DateTime?       @db.Timestamptz(3)
+  actualRecordedById String?
+  createdAt          DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @db.Timestamptz(3)
+
+  @@index([menuPackageId])
+  @@map("sub_event_menu_selection")
+}
+
+// ─── Quotations (Phase 3) ────────────────────────────────────────────────────
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  SUPERSEDED
+}
+
+enum SupplyType {
+  INTRA
+  INTER
+}
+
+enum LineKind {
+  PACKAGE
+  PLATES
+  SERVICE
+  CUSTOM
+  EXTRA_PLATES
+}
+
+/// Immutable once SENT (database trigger): changes create the next version.
+model QuotationVersion {
+  id                     String          @id @default(cuid())
+  bookingId              String
+  booking                Booking         @relation("BookingQuotations", fields: [bookingId], references: [id], onDelete: Restrict)
+  versionNumber          Int
+  status                 QuotationStatus @default(DRAFT)
+  pricesIncludeTax       Boolean
+  supplyType             SupplyType
+  placeOfSupplyStateCode String
+  roundGrandTotal        Boolean         @default(false)
+  bookingDiscount        Decimal         @default(0) @db.Decimal(12, 2)
+  subtotal               Decimal         @default(0) @db.Decimal(12, 2)
+  discountTotal          Decimal         @default(0) @db.Decimal(12, 2)
+  taxableTotal           Decimal         @default(0) @db.Decimal(12, 2)
+  cgstTotal              Decimal         @default(0) @db.Decimal(12, 2)
+  sgstTotal              Decimal         @default(0) @db.Decimal(12, 2)
+  igstTotal              Decimal         @default(0) @db.Decimal(12, 2)
+  taxTotal               Decimal         @default(0) @db.Decimal(12, 2)
+  roundOff               Decimal         @default(0) @db.Decimal(12, 2)
+  grandTotal             Decimal         @default(0) @db.Decimal(12, 2)
+  validUntil             DateTime?       @db.Date
+  terms                  String?
+  notes                  String?
+  /// Menus and sub-events as quoted, cancellation policy, pricing rules applied.
+  snapshot               Json?
+  sentAt                 DateTime?       @db.Timestamptz(3)
+  acceptedAt             DateTime?       @db.Timestamptz(3)
+  acceptedById           String?
+  createdById            String?
+  lines                  QuotationLine[]
+  acceptedFor            Booking?        @relation("AcceptedQuotation")
+  invoices               Invoice[]
+  createdAt              DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime        @updatedAt @db.Timestamptz(3)
+
+  @@unique([bookingId, versionNumber])
+  @@map("quotation_version")
+}
+
+model QuotationLine {
+  id                String           @id @default(cuid())
+  versionId         String
+  version           QuotationVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  sortOrder         Int              @default(0)
+  kind              LineKind
+  /// Plain reference: the quoted text stays even if the sub-event changes.
+  subEventId        String?
+  subEventLabel     String?
+  description       String
+  sacCode           String
+  unit              String
+  quantity          Decimal          @db.Decimal(12, 3)
+  unitPrice         Decimal          @db.Decimal(12, 2)
+  discount          Decimal          @default(0) @db.Decimal(12, 2)
+  /// This line's share of the quotation-level discount.
+  allocatedDiscount Decimal          @default(0) @db.Decimal(12, 2)
+  taxRatePercent    Decimal          @db.Decimal(5, 2)
+  taxableValue      Decimal          @db.Decimal(12, 2)
+  cgst              Decimal          @db.Decimal(12, 2)
+  sgst              Decimal          @db.Decimal(12, 2)
+  igst              Decimal          @db.Decimal(12, 2)
+  lineTotal         Decimal          @db.Decimal(12, 2)
+  taxCategoryId     String?
+  /// { type: package|menu_package|service, id, pricingRuleIds }
+  source            Json?
+
+  @@index([versionId, sortOrder])
+  @@map("quotation_line")
+}
+
+// ─── Money (Phase 3) — append-only tables, see the migration triggers ────────
+
+enum LedgerType {
+  PAYMENT
+  REFUND
+  ADJUSTMENT
+}
+
+enum LedgerDirection {
+  IN // money received from the customer (or a correction upwards)
+  OUT // money returned (or a correction downwards)
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  BANK_TRANSFER
+  CARD_OFFLINE
+  CHEQUE
+  OTHER
+}
+
+/// Per-booking ledger. Never updated or deleted; mistakes are reversed with
+/// an ADJUSTMENT that points at the entry it reverses.
+model LedgerEntry {
+  id              String          @id @default(cuid())
+  bookingId       String
+  booking         Booking         @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  type            LedgerType
+  direction       LedgerDirection
+  amount          Decimal         @db.Decimal(12, 2)
+  occurredOn      DateTime        @db.Date
+  method          PaymentMethod?
+  transactionRef  String?
+  receiptNumber   String?         @unique
+  reason          String?
+  notes           String?
+  reversesEntryId String?         @unique
+  reverses        LedgerEntry?    @relation("Reversal", fields: [reversesEntryId], references: [id], onDelete: Restrict)
+  reversedBy      LedgerEntry?    @relation("Reversal")
+  recordedById    String
+  idempotencyKey  String          @unique
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+
+  @@index([bookingId, occurredOn])
+  @@index([occurredOn])
+  @@map("ledger_entry")
+}
+
+/// The payment schedule. Paid status is computed from the ledger.
+model PaymentInstalment {
+  id             String    @id @default(cuid())
+  bookingId      String
+  booking        Booking   @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  label          String
+  dueOn          DateTime  @db.Date
+  amount         Decimal   @db.Decimal(12, 2)
+  sortOrder      Int       @default(0)
+  reminderSentOn DateTime? @db.Date
+  createdById    String?
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([bookingId, dueOn])
+  @@index([dueOn])
+  @@map("payment_instalment")
+}
+
+enum DepositEntryType {
+  RECEIVED
+  DEDUCTION
+  REFUNDED
+}
+
+/// Security deposit ledger, kept apart from revenue. Append-only.
+model DepositEntry {
+  id             String           @id @default(cuid())
+  bookingId      String
+  booking        Booking          @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  type           DepositEntryType
+  amount         Decimal          @db.Decimal(12, 2)
+  occurredOn     DateTime         @db.Date
+  method         PaymentMethod?
+  transactionRef String?
+  reason         String?
+  recordedById   String
+  idempotencyKey String           @unique
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+
+  @@index([bookingId, createdAt])
+  @@map("deposit_entry")
+}
+
+enum PostEventChargeKind {
+  EXTRA_PLATES
+  EXTRA_HOURS
+  OTHER
+}
+
+/// Charges recorded after an event (extra plates, extra hours). Append-only.
+model PostEventCharge {
+  id               String              @id @default(cuid())
+  bookingId        String
+  booking          Booking             @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  subEventId       String?
+  subEvent         BookingSubEvent?    @relation(fields: [subEventId], references: [id], onDelete: Restrict)
+  kind             PostEventChargeKind
+  description      String
+  sacCode          String
+  unit             String
+  quantity         Decimal             @db.Decimal(12, 3)
+  unitPrice        Decimal             @db.Decimal(12, 2)
+  taxRatePercent   Decimal             @db.Decimal(5, 2)
+  pricesIncludeTax Boolean
+  supplyType       SupplyType
+  taxableValue     Decimal             @db.Decimal(12, 2)
+  cgst             Decimal             @db.Decimal(12, 2)
+  sgst             Decimal             @db.Decimal(12, 2)
+  igst             Decimal             @db.Decimal(12, 2)
+  lineTotal        Decimal             @db.Decimal(12, 2)
+  recordedById     String
+  idempotencyKey   String              @unique
+  invoiceLines     InvoiceLine[]
+  createdAt        DateTime            @default(now()) @db.Timestamptz(3)
+
+  @@index([bookingId])
+  @@map("post_event_charge")
+}
+
+enum InvoiceStatus {
+  ISSUED
+  PARTIALLY_CREDITED
+  FULLY_CREDITED
+}
+
+/// GST tax invoice. Immutable after issue; only `status` changes (trigger).
+model Invoice {
+  id                     String            @id @default(cuid())
+  number                 String            @unique
+  financialYear          String
+  sequence               Int
+  bookingId              String
+  booking                Booking           @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  quotationVersionId     String?
+  quotationVersion       QuotationVersion? @relation(fields: [quotationVersionId], references: [id], onDelete: Restrict)
+  issuedOn               DateTime          @db.Date
+  /// Business details as printed (legal name, GSTIN, address, state).
+  supplier               Json
+  /// Customer details as printed (name, address, GSTIN, state).
+  recipient              Json
+  placeOfSupplyStateCode String
+  supplyType             SupplyType
+  pricesIncludeTax       Boolean
+  taxableTotal           Decimal           @db.Decimal(12, 2)
+  cgstTotal              Decimal           @db.Decimal(12, 2)
+  sgstTotal              Decimal           @db.Decimal(12, 2)
+  igstTotal              Decimal           @db.Decimal(12, 2)
+  taxTotal               Decimal           @db.Decimal(12, 2)
+  roundOff               Decimal           @default(0) @db.Decimal(12, 2)
+  grandTotal             Decimal           @db.Decimal(12, 2)
+  amountInWords          String
+  status                 InvoiceStatus     @default(ISSUED)
+  notes                  String?
+  issuedById             String
+  idempotencyKey         String            @unique
+  lines                  InvoiceLine[]
+  creditNotes            CreditNote[]
+  createdAt              DateTime          @default(now()) @db.Timestamptz(3)
+
+  @@unique([financialYear, sequence])
+  @@index([bookingId])
+  @@index([issuedOn])
+  @@map("invoice")
+}
+
+model InvoiceLine {
+  id                String           @id @default(cuid())
+  invoiceId         String
+  invoice           Invoice          @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  sortOrder         Int
+  description       String
+  sacCode           String
+  unit              String
+  quantity          Decimal          @db.Decimal(12, 3)
+  unitPrice         Decimal          @db.Decimal(12, 2)
+  discount          Decimal          @db.Decimal(12, 2)
+  taxableValue      Decimal          @db.Decimal(12, 2)
+  ratePercent       Decimal          @db.Decimal(5, 2)
+  cgst              Decimal          @db.Decimal(12, 2)
+  sgst              Decimal          @db.Decimal(12, 2)
+  igst              Decimal          @db.Decimal(12, 2)
+  lineTotal         Decimal          @db.Decimal(12, 2)
+  quotationLineId   String?
+  postEventChargeId String?          @unique
+  postEventCharge   PostEventCharge? @relation(fields: [postEventChargeId], references: [id], onDelete: Restrict)
+  creditNoteLines   CreditNoteLine[]
+
+  @@index([invoiceId, sortOrder])
+  @@map("invoice_line")
+}
+
+/// Corrections to an issued invoice (cancellations, reductions). Own number sequence. Append-only.
+model CreditNote {
+  id             String           @id @default(cuid())
+  number         String           @unique
+  financialYear  String
+  sequence       Int
+  invoiceId      String
+  invoice        Invoice          @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  bookingId      String
+  booking        Booking          @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  issuedOn       DateTime         @db.Date
+  reason         String
+  supplyType     SupplyType
+  taxableTotal   Decimal          @db.Decimal(12, 2)
+  cgstTotal      Decimal          @db.Decimal(12, 2)
+  sgstTotal      Decimal          @db.Decimal(12, 2)
+  igstTotal      Decimal          @db.Decimal(12, 2)
+  taxTotal       Decimal          @db.Decimal(12, 2)
+  grandTotal     Decimal          @db.Decimal(12, 2)
+  amountInWords  String
+  issuedById     String
+  idempotencyKey String           @unique
+  lines          CreditNoteLine[]
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+
+  @@unique([financialYear, sequence])
+  @@index([invoiceId])
+  @@index([bookingId])
+  @@map("credit_note")
+}
+
+model CreditNoteLine {
+  id            String      @id @default(cuid())
+  creditNoteId  String
+  creditNote    CreditNote  @relation(fields: [creditNoteId], references: [id], onDelete: Restrict)
+  invoiceLineId String
+  invoiceLine   InvoiceLine @relation(fields: [invoiceLineId], references: [id], onDelete: Restrict)
+  description   String
+  sacCode       String
+  taxableValue  Decimal     @db.Decimal(12, 2)
+  ratePercent   Decimal     @db.Decimal(5, 2)
+  cgst          Decimal     @db.Decimal(12, 2)
+  sgst          Decimal     @db.Decimal(12, 2)
+  igst          Decimal     @db.Decimal(12, 2)
+  lineTotal     Decimal     @db.Decimal(12, 2)
+
+  @@index([creditNoteId])
+  @@index([invoiceLineId])
+  @@map("credit_note_line")
+}
+
+// ─── Documents (Phase 3) ─────────────────────────────────────────────────────
+
+/// Saved field selections for the PDF/print dialog. ownerId null = shared.
+model DocumentPreset {
+  id           String   @id @default(cuid())
+  name         String
+  documentType String
+  template     String
+  fields       Json // ["customer.name", …]
+  ownerId      String?
+  createdById  String?
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([documentType, ownerId])
+  @@map("document_preset")
+}
+
+/// Every generated document: who, which fields, which template, and a hash.
+/// The PDF bytes (when a renderer is configured) are in the private store. Append-only.
+model GeneratedDocument {
+  id           String   @id @default(cuid())
+  bookingId    String
+  booking      Booking  @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  documentType String
+  template     String
+  fields       Json
+  reference    String
+  sourceId     String?
+  version      Int
+  format       String // pdf | html
+  sha256       String
+  storageKey   String?  @unique
+  sizeBytes    Int?
+  createdById  String
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([bookingId, documentType, createdAt])
+  @@map("generated_document")
 }

@@ -1,20 +1,42 @@
 name: Scheduler
 
 # Vercel Hobby runs cron only once a day, so scheduled jobs are triggered
-# from here (docs/architecture.md ADR-11). Hourly jobs are added in Phase 3.
+# from here (docs/architecture.md ADR-11). GitHub may start a run several
+# minutes late; nothing depends on exact timing (holds also expire lazily).
 # Setup: repository secret CRON_SECRET and variable APP_URL
 # (e.g. https://<domain>), then set variable SCHEDULER_ENABLED=true.
 
 on:
   schedule:
-    - cron: "30 0 * * *" # 06:00 IST
+    - cron: "5 * * * *" # hourly: hold expiry, waitlist, hold reminders, outbox retries
+    - cron: "30 0 * * *" # 06:00 IST: payment reminders, housekeeping
   workflow_dispatch:
+    inputs:
+      job:
+        description: Which job to run
+        type: choice
+        options: [hourly, daily]
+        default: hourly
 
 permissions: {}
 
 jobs:
+  hourly:
+    if: ${{ vars.SCHEDULER_ENABLED == 'true' && (github.event.schedule == '5 * * * *' || inputs.job == 'hourly') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Run hourly jobs
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            -X POST "$APP_URL/api/cron/hourly" \
+            -H "Authorization: Bearer $CRON_SECRET"
+
   daily:
-    if: ${{ vars.SCHEDULER_ENABLED == 'true' }}
+    if: ${{ vars.SCHEDULER_ENABLED == 'true' && (github.event.schedule == '30 0 * * *' || inputs.job == 'daily') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

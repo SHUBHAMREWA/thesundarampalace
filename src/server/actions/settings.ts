@@ -11,9 +11,9 @@ import { assertPermission } from "@/server/policies/authorize";
 import { recordAudit } from "@/server/services/audit";
 import { getSettings, saveSettings } from "@/server/services/settings";
 
-import { runAction, text, type ActionState } from "./helpers";
+import { checkbox, runAction, text, type ActionState } from "./helpers";
 
-const SECTIONS = ["business", "contact", "enquiry"] as const;
+const SECTIONS = ["business", "contact", "enquiry", "numbering", "bookingPolicy", "tax", "documents"] as const;
 type EditableSection = (typeof SECTIONS)[number];
 
 function phoneOrNull(value: string | undefined, field: string): string | null {
@@ -58,6 +58,41 @@ function valuesFor(section: EditableSection, form: FormData, current: Record<str
         responseTimePromise: localizedFromForm(form, "responseTimePromise"),
         defaultAssigneeId: s("defaultAssigneeId") || null,
         consentNoticeVersion: s("consentNoticeVersion"),
+      };
+    case "numbering":
+      return {
+        leadPrefix: s("leadPrefix"),
+        bookingPrefix: s("bookingPrefix"),
+        customerPrefix: s("customerPrefix"),
+        receiptPrefix: s("receiptPrefix"),
+        invoicePrefix: s("invoicePrefix"),
+        creditNotePrefix: s("creditNotePrefix"),
+      };
+    case "bookingPolicy":
+      return {
+        holdDurationHours: Number(s("holdDurationHours")),
+        holdReminderHoursBefore: Number(s("holdReminderHoursBefore")),
+        guestCountLockDays: Number(s("guestCountLockDays")),
+        advancePercent: s("advancePercent") || null,
+        quotationValidityDays: Number(s("quotationValidityDays")),
+        defaultCancellationPolicyId: s("defaultCancellationPolicyId") || null,
+        refundPlateShortfall: checkbox(form, "refundPlateShortfall"),
+      };
+    case "tax":
+      return {
+        pricesIncludeTaxByDefault: checkbox(form, "pricesIncludeTaxByDefault"),
+        roundGrandTotal: checkbox(form, "roundGrandTotal"),
+        invoiceNotes: s("invoiceNotes") || null,
+      };
+    case "documents":
+      return {
+        tagline: s("tagline") || null,
+        footerText: s("footerText") || null,
+        quotationTerms: s("quotationTerms") || null,
+        paymentTerms: s("paymentTerms") || null,
+        bookingConditions: s("bookingConditions") || null,
+        bankDetails: s("bankDetails") || null,
+        maxUploadMb: Number(s("maxUploadMb")),
       };
   }
 }

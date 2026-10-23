@@ -52,6 +52,33 @@ export const DEFAULT_LOOKUPS: Record<string, LookupSeed[]> = {
     { key: "corporate", label: "Corporate event" },
     { key: "other", label: "Other" },
   ],
+  /** Labels for the internal booking states (keys must match BookingStatus). */
+  booking_status: [
+    { key: "ENQUIRY_HOLD", label: "Enquiry Hold", systemKey: "ENQUIRY_HOLD" },
+    { key: "TENTATIVE", label: "Tentative", systemKey: "TENTATIVE" },
+    { key: "QUOTATION_SENT", label: "Quotation Sent", systemKey: "QUOTATION_SENT" },
+    { key: "CONFIRMED", label: "Confirmed", systemKey: "CONFIRMED" },
+    { key: "IN_PROGRESS", label: "In Progress", systemKey: "IN_PROGRESS" },
+    { key: "COMPLETED", label: "Completed", systemKey: "COMPLETED" },
+    { key: "CANCELLED", label: "Cancelled", systemKey: "CANCELLED" },
+  ],
+  sub_event_type: [
+    { key: "haldi", label: "Haldi" },
+    { key: "mehendi", label: "Mehendi" },
+    { key: "sangeet", label: "Sangeet" },
+    { key: "engagement", label: "Engagement" },
+    { key: "wedding", label: "Wedding", systemKey: "WEDDING" },
+    { key: "reception", label: "Reception" },
+    { key: "other", label: "Other function" },
+  ],
+  /** No room services (CLAUDE.md: venue and banquet halls only). */
+  service_category: [
+    { key: "venue_rental", label: "Venue / hall rental" },
+    { key: "catering", label: "Catering" },
+    { key: "decoration", label: "Decoration" },
+    { key: "lighting_sound", label: "Lighting and sound" },
+    { key: "other", label: "Other event services" },
+  ],
   customer_category: [
     { key: "high_value", label: "High Value Client" },
     { key: "mid_level", label: "Mid-Level Client" },

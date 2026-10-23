@@ -50,6 +50,26 @@ export async function requireUser(options: { allowMissing2fa?: boolean } = {}): 
   return user;
 }
 
+/**
+ * For route handlers: the signed-in user, or null when signed out or when
+ * their role requires 2FA that isn't set up yet (they get 401 and must
+ * finish setup in the CRM first).
+ */
+export async function getApiUser(): Promise<CurrentUser | null> {
+  const user = await getCurrentUser();
+  if (!user || (user.requires2fa && !user.twoFactorEnabled)) return null;
+  return user;
+}
+
+/** Client IP and user agent for audit entries written by route handlers. */
+export async function requestMeta(): Promise<{ ip: string | null; userAgent: string | null }> {
+  const h = await headers();
+  return {
+    ip: h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || null,
+    userAgent: h.get("user-agent"),
+  };
+}
+
 /** For CRM pages that need a specific permission: renders the 403 page otherwise. */
 export async function requirePermission(permission: PermissionKey): Promise<CurrentUser> {
   const user = await requireUser();

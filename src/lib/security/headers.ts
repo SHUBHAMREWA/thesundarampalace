@@ -51,6 +51,20 @@ export function adminCsp(nonce: string): string {
   `);
 }
 
+/**
+ * Document previews (src/app/api/documents/preview): no scripts, no network,
+ * embedded fonts only, and framable by the CRM on the same origin.
+ */
+export const DOCUMENT_PREVIEW_CSP =
+  "default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
+
+export function documentPreviewHeaders(): { key: string; value: string }[] {
+  return [
+    { key: "Content-Security-Policy", value: DOCUMENT_PREVIEW_CSP },
+    { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  ];
+}
+
 export function staticSecurityHeaders(): { key: string; value: string }[] {
   return [
     { key: "Content-Security-Policy", value: publicCsp() },

@@ -15,7 +15,10 @@ import {
 import { DEFAULT_SETTINGS } from "../src/lib/settings/schemas";
 
 export async function syncAccess(db: PrismaClient) {
+  const known = new Set((await db.permission.findMany({ select: { key: true } })).map((p) => p.key));
+  const introduced = new Set<string>();
   for (const [key, description] of Object.entries(PERMISSIONS)) {
+    if (!known.has(key)) introduced.add(key);
     await db.permission.upsert({ where: { key }, update: { description }, create: { key, description } });
   }
   for (const role of ROLES) {
@@ -24,11 +27,14 @@ export async function syncAccess(db: PrismaClient) {
       update: { name: role.name, requires2fa: role.requires2fa },
       create: { key: role.key, name: role.name, requires2fa: role.requires2fa, system: true },
     });
-    // Only system defaults are synced; roles edited in the CRM later keep their changes.
+    // Roles edited in the CRM keep their changes: a new role gets its full
+    // default set, an existing role only the permissions introduced by this
+    // release (new modules), never ones an administrator removed.
     const existing = await db.rolePermission.count({ where: { roleId: saved.id } });
-    if (existing === 0) {
+    const grant = existing === 0 ? role.permissions : role.permissions.filter((p) => introduced.has(p));
+    if (grant.length) {
       await db.rolePermission.createMany({
-        data: role.permissions.map((permissionKey) => ({ roleId: saved.id, permissionKey })),
+        data: grant.map((permissionKey) => ({ roleId: saved.id, permissionKey })),
         skipDuplicates: true,
       });
     }
