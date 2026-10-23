@@ -1,6 +1,6 @@
 # Database design
 
-Status: **Phase 0 draft.** This is the target model. Tables are created phase by phase (see the "Phase" column); each migration updates this document in the same commit (`db-change-safety` skill).
+Status: **Phase 1 implemented** for §3.1 (migrations `init_identity_settings_audit`, `add_auth_rate_limit`, including the `audit_log` append-only trigger). The rest is the target model. Tables are created phase by phase (see the "Phase" column); each migration updates this document in the same commit (`db-change-safety` skill).
 Last updated: 2026-10-23.
 
 ## 1. Conventions
@@ -71,10 +71,11 @@ flowchart TB
 | `SiteSetting` | key, value Json, updatedBy | Typed sections validated by Zod: business, tax, numbering, booking policy, notifications, SEO, retention. |
 | `LookupValue` | listKey, key, label (Localized), sortOrder, active, systemKey | Lead statuses, sources, lost reasons, event types, customer categories, professions, menu categories, service categories. |
 | `TaxCategory` | name, sacCode, ratePercent, effectiveFrom, effectiveTo | Rates are versioned by date so old invoices keep their rate. Must be confirmed by the accountant. |
-| `NumberSequence` | type, financialYear, prefix, nextValue | Unique `(type, financialYear)`. |
+| `NumberSequence` | type, period, prefix, nextValue | Primary key `(type, period)`. `period` is the calendar year for lead/booking references and the financial year (`2026-27`) for invoices. |
 | `AuditLog` | actorId, action, entityType, entityId, before/after summary Json, ip, userAgent, at | Append-only. No document contents, no secrets. |
 | `ActivityLog` | entityType, entityId, actorId, kind, message, data, at | Timeline shown on lead, customer and booking pages. |
-| `RateLimitBucket` | key, windowStart, count | Pruned daily. |
+| `RateLimitBucket` | key, windowStart, count | Our public-endpoint limiter. Pruned daily. |
+| `RateLimit` | key, count, lastRequest | Better Auth's own limiter for sign-in and 2FA (`auth_rate_limit`). |
 
 ### 3.2 CMS and website (Phase 2, extended in Phase 5)
 

@@ -34,10 +34,9 @@ APP_ENV=development            # development | staging | production
 DATABASE_URL=postgresql://user:password@host/db?sslmode=require
 DIRECT_DATABASE_URL=postgresql://user:password@host/db?sslmode=require
 
-# Auth
+# Auth (Better Auth also encrypts TOTP secrets with this key)
 BETTER_AUTH_SECRET=change-me-32-bytes-min
 BETTER_AUTH_URL=http://localhost:3000
-TOTP_ENCRYPTION_KEY=change-me
 
 # Cloudinary (public media)
 CLOUDINARY_CLOUD_NAME=
@@ -65,7 +64,7 @@ PDF_SERVICE_HMAC_SECRET=
 WHATSAPP_PROVIDER=none
 ```
 
-All variables are validated at startup with Zod (`src/lib/env.ts`); the app refuses to boot with a missing or malformed value in staging/production.
+The real template is `.env.example` in the repository root. All variables are validated at startup with Zod (`src/lib/env.ts`); the app refuses to boot with a missing or malformed value in staging/production.
 
 ## 3. Branches and environments
 

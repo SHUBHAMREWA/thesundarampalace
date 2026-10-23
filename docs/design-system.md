@@ -47,12 +47,12 @@ Computed on 2026-10-23 with the WCAG relative-luminance formula. AA needs 4.5:1 
 | success / danger / info on white | 5.05 / 6.57 / 5.42 | Pass | Pass |
 | **warning on white** | **3.64** | **Fail** | Pass |
 
-What this means, and proposed fixes (need approval before Phase 1):
+What this means, and the fixes (applied in Phase 1, `src/app/globals.css`):
 
 1. **Muted text on lavender** — rule: on lavender backgrounds use `--color-text`, never muted. No new token.
 2. **Gold on light backgrounds** — already banned by the rules; confirmed by the numbers. Gold text is allowed only on `primary-deep`.
-3. **Input borders** — the `#E8DCE1` hairline is fine for dividers, but form fields need a 3:1 boundary so people can find them. *Proposed* new token `--color-border-strong: #9E8994` (3.25:1 on white, 3.05:1 on ivory) used only for input, select, checkbox and textarea outlines.
-4. **Warning text** — *Proposed*: change `--color-warning` to `#946118` (5.27:1 on white, 4.95:1 on ivory). It still reads as amber, works as text and as a badge fill with white text.
+3. **Input borders** — the `#E8DCE1` hairline is fine for dividers, but form fields need a 3:1 boundary so people can find them. New token `--color-border-strong: #9E8994` (3.25:1 on white, 3.05:1 on ivory) used only for input, select, checkbox and textarea outlines.
+4. **Warning text** — `--color-warning` changed to `#946118` (5.27:1 on white, 4.95:1 on ivory). It still reads as amber, works as text and as a badge fill with white text.
 
 ## 3. Other tokens
 

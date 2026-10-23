@@ -48,7 +48,7 @@ Versions are the current stable releases checked on npm on 2026-10-23. Exact ver
 | Runtime | Node.js | 24 LTS | Installed locally: v24.11.1. |
 | Framework | Next.js App Router | 16.4.x | |
 | UI library | React | 19.x | |
-| Language | TypeScript, `strict: true` | **6.0.x** | 7.0 is out, but Next.js only type-checks it through an experimental CLI flag, and lint/test tooling still uses the JS compiler API. Revisit in Phase 6. |
+| Language | TypeScript, `strict: true` | **5.9.x** | The line `create-next-app` 16.4 installs and typescript-eslint supports. 7.0 is out, but Next.js only type-checks it through an experimental CLI flag. Revisit in Phase 6. |
 | Styling | Tailwind CSS | 4.3.x | Tokens mapped with `@theme` in `globals.css`. |
 | Components | shadcn/ui + Radix, Lucide icons | latest CLI | Copied into `src/components/ui`, themed by tokens. |
 | Forms | React Hook Form + Zod | 7.x / 4.x | Zod schemas shared in `src/lib/validation/`. |
@@ -66,7 +66,7 @@ Versions are the current stable releases checked on npm on 2026-10-23. Exact ver
 | Tests | Vitest, Playwright Test | 5.x / 1.64.x | |
 | Package manager | npm | 11.x | The kit's commands assume npm. |
 
-Not installed on this machine: Docker, PostgreSQL client tools. See §7 for how local development works without them.
+Not installed on this machine: Docker, PostgreSQL client tools on PATH (a PostgreSQL 18 Windows service exists but is not used by this project). See §7.
 
 ## 4. Decision records
 
@@ -182,6 +182,7 @@ Decision recorded at the start of Phase 3.
 - Financial year labels (`2026-27`) are computed from the Asia/Kolkata date, not UTC.
 
 ### ADR-17 Observability — *Proposed*
+- **Status:** `/api/health/enquiry` is built. Sentry is not installed yet; it is added with the Phase 2 launch, when a DSN exists to verify it against.
 - Sentry Free for server and client errors (PII scrubbing on; no request bodies).
 - UptimeRobot Free on `/` and `/api/health/enquiry` (checks DB connectivity without creating data). Alerts to the owner's email.
 - If the enquiry endpoint throws, Sentry alerts immediately and the visitor sees a fallback with the phone and WhatsApp number, so no enquiry is silently lost.
@@ -241,9 +242,9 @@ Server Action / Route Handler
 
 ## 7. Local development on this machine
 
-Docker and PostgreSQL are not installed. Two options; Phase 1 uses the first unless the developer prefers the second:
-1. **Neon dev project** (no install, free): `DATABASE_URL` points at the `dev` branch of `sundaram-dev`. Integration tests use the `test` branch, reset before each run.
-2. **Native PostgreSQL 17 for Windows** (free): fastest tests, works offline. The `btree_gist` extension ships with the standard installer.
+**Implemented in Phase 1:** `npm run db:local` starts a real PostgreSQL 17 inside the project via the `embedded-postgres` package (no Docker, no system install), UTF-8 encoded, on port 54329 with data in `.local/pgdata`. It hosts three databases: `sundaram_dev` (development), `sundaram_test` (rebuilt from migrations by every `npm run test`) and `sundaram_e2e` (rebuilt by every `npm run test:e2e`).
+
+A Neon `sundaram-dev` project remains an option for working from another machine.
 
 CI always uses a throwaway PostgreSQL container, so migrations are proven from scratch on every push.
 

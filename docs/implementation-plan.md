@@ -1,6 +1,6 @@
 # Implementation plan
 
-Status: **Phase 0 — awaiting approval.** No application code has been written. Phase 1 starts only after the decisions in §1 are answered.
+Status: **Phase 1 (Foundation) built locally on 2026-10-23.** Phase 0 approved with the free-tier hosting decision; Phase 1 tasks below are done except deploying (no hosting accounts yet) and Sentry (no DSN yet).
 Last updated: 2026-10-23.
 
 Companion docs: `architecture.md` (decisions), `database-design.md` (model), `design-system.md` (tokens), `security.md`, `deployment.md`, `costs.md`, `missing-business-info.md` (what the business must supply).
@@ -31,6 +31,8 @@ Companion docs: `architecture.md` (decisions), `database-design.md` (model), `de
 Business info needed early (not blocking Phase 1, blocking Phase 2): city/address, hall names, the exact domain name and Hostinger DNS access, logo, photos — see `missing-business-info.md` §0.
 
 ## 2. Phase 1 — Foundation
+
+**Phase 1 result (2026-10-23):** 1.1–1.12 and 1.14's workflows are done and verified locally (type check, lint, 66 unit/integration tests, production build, 15 Playwright tests). Not done: the Vercel/Neon deployment in 1.13 and the first live backup/restore drill in 1.14 — both need the free accounts to be created; Sentry moves to Phase 2 launch. Decisions taken while building: TypeScript 5.9 (not 6.0), local PostgreSQL via `embedded-postgres` instead of a Neon dev project, public pages use a non-nonce CSP because they are static.
 
 Goal: an empty but production-shaped app: design system, database, auth with 2FA, permissions, layouts, CI. No business features yet.
 

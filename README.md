@@ -1,46 +1,40 @@
-# Sundaram Palace — Claude Code starter kit
+# The Sundaram Palace — Website & CRM
 
-## What's inside
-```
-MASTER_PROMPT.md        Full v2 requirements (paste or point Claude Code to it)
-CLAUDE.md               Standing project rules Claude Code reads automatically
-.claude/skills/         8 project skills Claude Code loads when relevant
-  sundaram-design-system/   Rose Mahal colors, fonts, UI rules
-  luxury-venue-content/     Website pages, CMS, truthful content, SEO
-  banquet-business-rules/   Halls, slots, holds, conflicts, menus, plates
-  india-billing-gst/        GST invoices, payments, deposits, refunds
-  pdf-documents/            PDF templates, field picker, print rules
-  secure-customer-data/     Permissions, uploads, DPDP consent, WhatsApp
-  db-change-safety/         Prisma schema and migration safety
-  phase-quality-gate/       Checks + report format at the end of each phase
-```
+Luxury wedding and banquet venue website, CMS and internal CRM for The Sundaram Palace.
+Venue and banquet halls only — no room booking.
 
-## How to use
-1. Create an empty project folder (e.g. `sundaram-palace`) and run `git init`.
-2. Copy everything from this kit into that folder, keeping the `.claude` folder (it's hidden on Mac/Linux — use `ls -a` to see it).
-3. Open the folder in Claude Code and run `/skills` — you should see the 8 skills listed.
-4. Start with this message:
+- Requirements: [`MASTER_PROMPT.md`](MASTER_PROMPT.md) · Project rules: [`CLAUDE.md`](CLAUDE.md)
+- Plan and decisions: [`docs/implementation-plan.md`](docs/implementation-plan.md), [`docs/architecture.md`](docs/architecture.md)
+- What the business still needs to supply: [`docs/missing-business-info.md`](docs/missing-business-info.md)
 
-   > Read MASTER_PROMPT.md and CLAUDE.md. Do Phase 0 only: inspect the repo, create the docs listed in Phase 0 and `docs/missing-business-info.md`, and propose the implementation plan. Stop and show me the plan before writing app code.
+## Stack
+Next.js 16 (App Router, Cache Components) · TypeScript strict · Tailwind 4 + shadcn/ui ·
+PostgreSQL + Prisma 7 · Better Auth (TOTP 2FA) · next-intl (English + Hindi) · Vitest + Playwright.
+Hosting plan: Vercel Hobby, Neon Free, Cloudinary Free (see [`docs/costs.md`](docs/costs.md)).
 
-5. After approving the plan, go one phase at a time:
+## Local setup (Windows, macOS or Linux — no Docker needed)
 
-   > Start Phase 1. Load the relevant skills. Finish with the phase-quality-gate report.
-
-## Optional official skills (from Anthropic's public skills repo)
-- `frontend-design` — stronger visual design for the luxury website.
-- `webapp-testing` — Playwright-based checks of the running app.
-- `skill-creator` — to improve or add your own skills later.
-
-Install with the skills CLI, for example:
 ```bash
-npx skills add anthropics/skills@frontend-design
-npx skills add anthropics/skills@webapp-testing
+npm install
+cp .env.example .env        # then fill in secrets (see comments in the file)
+npm run db:local            # terminal 1: embedded PostgreSQL 17 on port 54329
+npm run db:deploy           # terminal 2: apply migrations to sundaram_dev
+npm run db:seed             # roles, permissions, lists, settings, local Super Admin
+npm run dev                 # http://localhost:3000  ·  CRM: /admin
 ```
-(or copy the skill folders from github.com/anthropics/skills into `.claude/skills/`).
 
-## Before launch, check yourself
-- Hosting plan allows commercial use.
-- Database is non-expiring with daily backups.
-- GST settings confirmed by your accountant.
-- Privacy policy and consent text reviewed by a professional.
+`.env` also needs `TEST_DATABASE_URL` and `E2E_DATABASE_URL` for the test suites
+(`…/sundaram_test` and `…/sundaram_e2e` on the same local server).
+
+The first Super Admin sign-in forces two-factor setup (any authenticator app).
+
+## Checks
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build && npm run test:e2e
+```
+
+CI runs all of these on every push (`.github/workflows/ci.yml`).

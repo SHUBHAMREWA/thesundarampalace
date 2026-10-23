@@ -29,7 +29,8 @@ Main threats: public form spam and abuse; staff account takeover; a staff member
 - Permission keys live in a code registry (`src/lib/permissions/registry.ts`) and are seeded into the DB. Roles are sets of permissions. **Code checks permissions, never role names.**
 - Every Server Action and Route Handler: authenticate → `assertPermission(user, key, resource?)` → Zod validation → service. No "internal" exceptions.
 - Data shaping in `src/server/policies/`: Operations never receives payment fields; Kitchen receives only kitchen-sheet data for upcoming events.
-- A table-driven test walks the whole matrix and asserts 403 for every role × action that is not allowed.
+- A table-driven test walks the whole matrix and asserts 403 for every role × action that is not allowed (`tests/integration/permissions.test.ts`).
+- CRM pages render the 403 screen with `forbidden()`. Because Next.js 16 streams pages, the HTTP status of such a page can be 200; the e2e test asserts that the 403 screen renders and no protected data is in the response. Route handlers and server actions return real 401/403 statuses.
 
 ### Draft permission matrix
 
@@ -69,7 +70,7 @@ Main threats: public form spam and abuse; staff account takeover; a staff member
 
 ## 5. Web security
 
-- Headers via Next.js middleware / config: `Content-Security-Policy` with nonces (allow self, Cloudinary, Google Maps embed, Vercel analytics, Sentry), `Strict-Transport-Security` (preload after launch), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera, mic, geolocation off), `frame-ancestors 'none'` for `/admin`.
+- Headers (`src/lib/security/headers.ts`, `src/proxy.ts`): **public pages** are statically generated, so they can't carry per-request nonces; they get a CSP without nonces that still blocks plugins, framing, foreign forms and foreign scripts (`script-src 'self' 'unsafe-inline'`). **The CRM** is always rendered per request and gets a strict nonce-based CSP (`'nonce-…' 'strict-dynamic'`). Plus `Strict-Transport-Security` (preload after launch), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera, mic, geolocation off), `frame-ancestors 'none'` for `/admin`.
 - Server Actions get Next.js' built-in origin check; other state-changing route handlers verify `Origin` and a CSRF token.
 - Output escaping by React; CMS rich text rendered from JSON with an allowlist (no raw HTML); PDF templates render escaped data only.
 - Public endpoints rate-limited (ADR-12): enquiry, date check, site visit, brochure, login, 2FA. Enquiry also has a honeypot and a minimum fill time. A privacy-friendly CAPTCHA is added only if spam appears.
