@@ -59,6 +59,8 @@ test.describe.serial("CRM authentication and permissions", () => {
   });
 
   test("Super Admin signs in again with password + TOTP and can open settings", async ({ page }) => {
+    // May wait up to 30 s for the next authenticator window before the settings steps.
+    test.slow();
     await signIn(page, E2E_USERS.superAdmin.email);
     await expect(page).toHaveURL(/\/admin\/sign-in\/two-factor$/);
     // Use a code from a new 30-second window so it differs from the setup code.
@@ -67,8 +69,23 @@ test.describe.serial("CRM authentication and permissions", () => {
     await expect(page).toHaveURL(/\/admin$/);
     await page.getByRole("link", { name: "Settings" }).click();
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
-    await expect(page.getByText("Business details")).toBeVisible();
-    await expect(page.getByText("Not set").first()).toBeVisible();
+    await expect(page.getByText("Business details", { exact: true })).toBeVisible();
+
+    // A bad value is rejected without losing the other fields.
+    await page.getByLabel("Office hours").fill("Every day, 10:00–19:00");
+    await page.getByLabel("WhatsApp number").fill("123");
+    await page.getByRole("button", { name: "Save business details" }).click();
+    await expect(page.getByText("Enter a valid phone number")).toBeVisible();
+    await expect(page.getByLabel("Office hours")).toHaveValue("Every day, 10:00–19:00");
+
+    await page.getByLabel("WhatsApp number").fill("90000 22233");
+    await page.getByRole("button", { name: "Save business details" }).click();
+    await expect(page.getByText("Settings saved. The website is updated.")).toBeVisible();
+
+    // The static contact page picks it up straight away.
+    await page.goto("/en/contact");
+    await expect(page.getByRole("link", { name: "Chat on WhatsApp" }).first()).toHaveAttribute("href", /^https:\/\/wa\.me\/919000022233/);
+    await expect(page.getByText("Every day, 10:00–19:00")).toBeVisible();
   });
 
   test("Sales user can use the dashboard but gets 403 on settings", async ({ page }) => {
@@ -79,7 +96,7 @@ test.describe.serial("CRM authentication and permissions", () => {
     // assert what matters: the 403 screen renders and no settings data leaks.
     await page.goto("/admin/settings");
     await expect(page.getByRole("heading", { name: "You don't have access to this page" })).toBeVisible();
-    await expect(page.getByText("Business details")).toHaveCount(0);
+    await expect(page.getByText("Business details", { exact: true })).toHaveCount(0);
     expect(await page.content()).not.toContain("Reference numbering");
   });
 

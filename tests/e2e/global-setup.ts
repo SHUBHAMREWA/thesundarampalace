@@ -6,7 +6,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword } from "better-auth/crypto";
 import { Client } from "pg";
 
-import { seedLookups, seedSettings, syncAccess } from "../../prisma/seed-lib";
+import { seedCms, seedLookups, seedSettings, syncAccess } from "../../prisma/seed-lib";
 import { PrismaClient } from "../../src/generated/prisma/client";
 import { E2E_PASSWORD, E2E_USERS } from "./fixtures";
 
@@ -33,6 +33,7 @@ export default async function globalSetup(): Promise<void> {
     await syncAccess(db);
     await seedLookups(db);
     await seedSettings(db);
+    await seedCms(db);
     const password = await hashPassword(E2E_PASSWORD);
     for (const user of Object.values(E2E_USERS)) {
       const created = await db.user.create({

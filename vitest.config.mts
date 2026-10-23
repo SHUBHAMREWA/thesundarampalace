@@ -11,7 +11,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
+    include: ["tests/unit/**/*.test.{ts,tsx}", "tests/integration/**/*.test.ts"],
     setupFiles: ["tests/setup/env.ts"],
     globalSetup: ["tests/setup/global-db.ts"],
     // Integration tests share one database; run files one at a time.

@@ -5,6 +5,7 @@ export const E2E_PASSWORD = "E2e-Password-Only-For-Tests-42";
 export const E2E_USERS = {
   superAdmin: { email: "e2e-super-admin@example.test", role: "super_admin", name: "E2E Super Admin" },
   sales: { email: "e2e-sales@example.test", role: "sales", name: "E2E Sales" },
+  admin: { email: "e2e-admin@example.test", role: "admin", name: "E2E Admin" },
 } as const;
 
 function base32Decode(input: string): Buffer {
