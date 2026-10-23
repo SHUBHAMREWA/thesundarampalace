@@ -1,6 +1,6 @@
 # Database design
 
-Status: **Phase 1 implemented** for §3.1 (migrations `init_identity_settings_audit`, `add_auth_rate_limit`, including the `audit_log` append-only trigger). The rest is the target model. Tables are created phase by phase (see the "Phase" column); each migration updates this document in the same commit (`db-change-safety` skill).
+Status: **Phase 2 implemented** for §3.2 (CMS), §3.3 (leads), the public parts of §3.5 (halls, capacities) and public menus, plus `Notification`, `Outbox` and `ConversionEvent` (migration `phase2_cms_venues_leads`). Phase 1 implemented (migrations `init_identity_settings_audit`, `add_auth_rate_limit`, including the `audit_log` append-only trigger). The rest is the target model. Tables are created phase by phase (see the "Phase" column); each migration updates this document in the same commit (`db-change-safety` skill).
 Last updated: 2026-10-23.
 
 ## 1. Conventions

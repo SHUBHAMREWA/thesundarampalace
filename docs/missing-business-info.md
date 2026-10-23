@@ -137,7 +137,7 @@ Repeat for every space.
 |---|---|---|---|
 | Staff list with roles (Super Admin, Admin, Manager, Sales, Accounts, Operations, Kitchen) | Phase 1 (admin), Phase 2 (sales) | Missing | |
 | Default assignee for new leads and who gets new-lead alerts | Phase 2 | Missing | |
-| Who writes or reviews Hindi copy | Phase 5 | Missing | Legal text is never machine-translated. |
+| Who writes or reviews Hindi copy | Phase 2 (UI labels), Phase 5 | Missing | The Hindi site currently falls back to English labels (`messages/hi.json` is almost empty). Legal text is never machine-translated. |
 
 ## 11. Real weddings, reviews and brochure
 
@@ -154,7 +154,7 @@ Repeat for every space.
 | Privacy policy | Phase 2 | Missing | Draft structure provided by us; must be reviewed by a qualified professional (DPDP Act, 2023). |
 | Terms and conditions | Phase 2 | Missing | |
 | Cancellation and refund policy text | Phase 2 | Missing | Must match the slabs in section 7. |
-| Consent wording for enquiry, brochure, site visit, greetings | Phase 2 | Default | Draft provided by us; professional review required. |
+| Consent wording for enquiry, brochure, site visit, greetings | Phase 2 | Default | Enquiry draft is in `messages/en.json` → `enquiry.consent` (notice version `2026-10-draft`). Professional review required; bump the version in Settings when it changes. |
 | Data-retention periods per data type | Phase 3 | Default | Proposed defaults in `docs/security.md`. |
 | Purpose for collecting identity documents (PAN/Aadhaar), if any | Phase 3 | Missing | If there is no legitimate need, the upload stays disabled. |
 

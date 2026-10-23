@@ -40,6 +40,7 @@ BETTER_AUTH_URL=http://localhost:3000
 
 # Cloudinary (public media)
 CLOUDINARY_CLOUD_NAME=
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=   # same value; used for image URLs
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 CLOUDINARY_FOLDER_PREFIX=dev
@@ -90,6 +91,9 @@ On every push and pull request:
 Kept lean (dependency caching, e2e smoke on PRs) to stay inside GitHub Free's Actions minutes.
 
 ## 5. Database migrations
+
+**Before the first build of any environment:** `npm run db:deploy && npm run db:seed` against that database. Public pages are prerendered from CMS rows at build time; an empty database would bake "page not found" into the static pages until the next CMS save.
+
 
 - Development: `npx prisma migrate dev --name <descriptive_name>`; review the SQL before committing.
 - Staging: `npx prisma migrate deploy` runs after CI passes on `main`.

@@ -47,6 +47,9 @@ Full requirements: `MASTER_PROMPT.md`. Read it at the start of every new phase.
 - Public pages must stay static (free-tier plan): no cookies/headers reads in `(website)`; locale comes from `next/root-params`.
 - The CRM root layout (`src/app/admin/layout.tsx`) is dynamic for the CSP nonce; check permissions with `requirePermission()` in every page and `assertPermission()` in every action.
 - Prisma 7: client is generated into `src/generated/prisma` (git-ignored); import from `@/generated/prisma/client`.
+- Public data is read through `src/server/cms/queries.ts` (`"use cache"` + `cacheTag("cms")`). Every CMS/settings write must call `updateTag(CMS_TAG)` so the static site refreshes.
+- CRM/CMS forms use `ActionForm` from `src/components/forms/form-kit.tsx` (React would otherwise clear fields after a failed save).
+- A fresh database must be migrated **and seeded** (`npm run db:deploy && npm run db:seed`) before `npm run build`, because public pages are prerendered from CMS rows.
 
 ## Phase order
 0 Discovery → 1 Foundation → 2 Website + Leads MVP → 3 Bookings and money → 4 Operations → 5 Growth → 6 Hardening and launch.

@@ -163,9 +163,9 @@ Decision recorded at the start of Phase 3.
 - Applies to enquiry, date check, site visit, brochure, login and 2FA endpoints.
 - Revisit if: sustained traffic makes this table hot; move to Upstash Redis (free tier).
 
-### ADR-13 Rich text as structured JSON — *Proposed*
-- CMS and blog bodies are edited with Tiptap and stored as ProseMirror JSON.
-- Rendered server-side by our own renderer with an allowlist of nodes and marks (headings, paragraphs, lists, links, images from `MediaAsset`, quotes). No `dangerouslySetInnerHTML`. Links get `rel="noopener"` and are validated (http/https/mailto/tel only).
+### ADR-13 Safe CMS text — *Accepted (Phase 2)*
+- Phase 2 stores CMS bodies as a small Markdown subset per language (`## heading`, paragraphs, `-`/`1.` lists, `**bold**`, `*italic*`, `[link](https://…)`), rendered by our own React renderer in `src/lib/content/rich-text.tsx`. Raw HTML is never interpreted (`dangerouslySetInnerHTML` is not used); links are limited to http/https/mailto/tel/relative and external ones get `rel="noopener noreferrer"`. Tested in `tests/unit/content.test.tsx`.
+- Chosen over Tiptap for now: no editor dependency, plain text is easy for staff and safe by construction. A rich editor can be revisited for the blog in Phase 5.
 
 ### ADR-14 Money and tax — *Accepted (from requirements)*
 - All arithmetic in `src/lib/money/` using decimal.js with `ROUND_HALF_UP` to 2 places per tax component. React components only format.
@@ -187,7 +187,8 @@ Decision recorded at the start of Phase 3.
 - UptimeRobot Free on `/` and `/api/health/enquiry` (checks DB connectivity without creating data). Alerts to the owner's email.
 - If the enquiry endpoint throws, Sentry alerts immediately and the visitor sees a fallback with the phone and WhatsApp number, so no enquiry is silently lost.
 
-### ADR-18 Analytics — *Proposed*
+### ADR-18 Analytics — *Accepted (Phase 2: conversions only)*
+- **Status:** conversion events (enquiry submitted, WhatsApp click, call click) are stored in `ConversionEvent` via `/api/events` (no cookies, no personal data, rate-limited). UTM/referrer attribution lives in `sessionStorage` until an enquiry is sent. Because nothing non-essential is stored in the browser, no cookie-consent banner is shown; one is required before adding GA4 or ad pixels.
 - Our own `ConversionEvent` table for enquiry submitted, WhatsApp click, call click, brochure download, site visit booked, date check used — no names or phone numbers.
 - Page views: Vercel Web Analytics within the Hobby allowance (cookieless), or Google Analytics 4 (free) loaded only after consent if the business wants richer reports.
 - Meta / Google Ads tags only if the business asks, and only after consent.

@@ -74,6 +74,9 @@ Main threats: public form spam and abuse; staff account takeover; a staff member
 - Server Actions get Next.js' built-in origin check; other state-changing route handlers verify `Origin` and a CSRF token.
 - Output escaping by React; CMS rich text rendered from JSON with an allowlist (no raw HTML); PDF templates render escaped data only.
 - Public endpoints rate-limited (ADR-12): enquiry, date check, site visit, brochure, login, 2FA. Enquiry also has a honeypot and a minimum fill time. A privacy-friendly CAPTCHA is added only if spam appears.
+- Enquiry form (Phase 2): server-side Zod validation, hidden honeypot field, minimum fill time (2.5 s), rate limits of 5 per 10 minutes per connection and 3 per hour per phone (keys are salted hashes, raw IPs are never stored). Staff alert emails contain only the lead reference and a CRM link — customer details stay in the CRM. Phones are masked in in-app notifications.
+- Staff accounts (Phase 2): Admins with `users.manage` create accounts with a temporary password; granting Super Admin/Admin needs `roles.manage`. Role changes and deactivation sign the person out everywhere. All recorded in the audit log.
+- Cookies: the public site sets no cookies; the CRM sets only the Better Auth session cookie. UTM attribution uses `sessionStorage` and is sent only with an enquiry.
 - The date-check endpoint returns only `AVAILABLE | LIMITED | FULLY_BOOKED`; a test asserts the response contains no names, references or event types.
 - Cron and PDF-service calls are authenticated with secrets/HMAC and reject replays.
 - Dependencies: Dependabot + `npm audit` in CI; lockfile committed.

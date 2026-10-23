@@ -57,6 +57,8 @@ Goal: an empty but production-shaped app: design system, database, auth with 2FA
 
 ## 3. Phase 2 — Website and leads MVP (ship first)
 
+**Phase 2 result (2026-10-23):** built and verified locally (type check, lint, 107 unit/integration tests, production build with 96 static pages, 35 Playwright tests). All public pages, the CMS for every content type, the 3-step and compact enquiry forms, the leads CRM, staff accounts, notifications and SEO basics work with tasteful placeholders where business facts are missing. Not done: 2.11 deployment (no accounts/domain records yet), Sentry, Google Business Profile link (needs the business), Hindi UI translations and Hindi content (need a fluent speaker), a Lighthouse run on real photos (no photos yet). Decisions: CMS text uses a safe Markdown subset (ADR-13), no cookie banner because no tracking cookies are set (ADR-18).
+
 Goal: the public site is live and enquiries reach staff.
 
 | # | Task | Skills |
