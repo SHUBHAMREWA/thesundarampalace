@@ -92,12 +92,12 @@ Kept lean (dependency caching, e2e smoke on PRs) to stay inside GitHub Free's Ac
 
 ## 5. Database migrations
 
-**Before the first build of any environment:** `npm run db:deploy && npm run db:seed` against that database. Public pages are prerendered from CMS rows at build time; an empty database would bake "page not found" into the static pages until the next CMS save.
+**Before the first build of any environment:** `npm run db:prod -- --env-file .env.<environment>` (migrate deploy + reference-data seed, with a confirmation prompt; `--yes` in CI). The env file is git-ignored and holds that environment's `APP_ENV` and `DIRECT_DATABASE_URL`. Public pages are prerendered from CMS rows at build time; an empty database would bake "page not found" into the static pages until the next CMS save.
 
 
 - Development: `npx prisma migrate dev --name <descriptive_name>`; review the SQL before committing.
 - Staging: `npx prisma migrate deploy` runs after CI passes on `main`.
-- Production: **manual approval step.** Confirm a fresh backup exists (last night's encrypted dump, plus a Neon restore point within the 6-hour window), then `npx prisma migrate deploy` with `DIRECT_DATABASE_URL`.
+- Production: **manual approval step.** Confirm a fresh backup exists (last night's encrypted dump, plus a Neon restore point within the 6-hour window), then `npm run db:prod -- --env-file .env.production`. It shows the target host and database and asks you to type the database name.
 - Destructive changes use expand-and-contract across two releases and need the owner's approval.
 - Never `prisma db push` or `migrate reset` against staging or production.
 

@@ -32,8 +32,8 @@ Full requirements: `MASTER_PROMPT.md`. Read it at the start of every new phase.
 | End of any phase or before saying "done" | `phase-quality-gate` |
 
 ## Commands
-- Local database (keep running in its own terminal): `npm run db:local` — embedded PostgreSQL 17 on port 54329, data in `.local/pgdata`
-- Dev: `npm run dev` (needs `.env`; copy from `.env.example`)
+- Dev (one command): `npm run dev` — creates `.env` if missing, starts the embedded PostgreSQL 17 (port 54329, data in `.local/pgdata`), applies migrations, generates the client, seeds, then runs `next dev`. `npm run dev:next` runs only Next.js; `npm run db:local` only the database.
+- Staging/production database: `npm run db:prod -- --env-file .env.production` (migrate deploy + reference seed only, with confirmation).
 - Type check: `npm run typecheck`
 - Lint (+ colour-token guard): `npm run lint`
 - Unit/integration tests: `npm run test` (rebuilds `sundaram_test` from migrations)
