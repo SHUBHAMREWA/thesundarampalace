@@ -1,7 +1,7 @@
 # Database design
 
-Status: **Phase 2 implemented** for §3.2 (CMS), §3.3 (leads), the public parts of §3.5 (halls, capacities) and public menus, plus `Notification`, `Outbox` and `ConversionEvent` (migration `phase2_cms_venues_leads`). Phase 1 implemented (migrations `init_identity_settings_audit`, `add_auth_rate_limit`, including the `audit_log` append-only trigger). The rest is the target model. Tables are created phase by phase (see the "Phase" column); each migration updates this document in the same commit (`db-change-safety` skill).
-Last updated: 2026-10-23.
+Status: **Phase 3 implemented** (migrations `phase3_bookings_money` and `phase3_integrity`): customers, private files, slots, bookings, reservations with the exclusion constraint, quotations, ledger, deposits, post-event charges, invoices, credit notes and documents — §3.10 lists how the build differs from the first draft. Phase 2: §3.2 (CMS), §3.3 (leads), public hall facts and menus (`phase2_cms_venues_leads`). Phase 1: `init_identity_settings_audit`, `add_auth_rate_limit`. Phase 4–5 tables are still the target model. Each migration updates this document in the same commit (`db-change-safety` skill).
+Last updated: 2026-10-24.
 
 ## 1. Conventions
 
@@ -177,6 +177,22 @@ Outstanding balance (computed, never stored as truth):
 | `Outbox` | 2 | channel, template, to (masked in UI), payload Json, purpose, status (PENDING, SENT, FAILED, NOT_SENT_NO_PROVIDER, SKIPPED_NO_CONSENT), attempts, nextAttemptAt, providerMessageId |
 | `DataSubjectRequest` | 4 | subjectType, subjectId, kind (ACCESS, CORRECTION, DELETION), status, notes, handledById |
 
+### 3.10 Phase 3 as built (differences from the draft above)
+
+| Area | As built |
+|---|---|
+| Tax | `TaxCategory` (name, SAC) + `TaxRate` (rate, effectiveFrom), so a rate change is a new row and issued documents keep their rate. |
+| Services | The catalogue table is `ServiceItem` (`Service` clashes with the website's service pages). |
+| Packages | CRM pricing columns on the existing `Package` (`crmPrice`, `perPlateRate`, `minPlates`, `taxCategoryId`, `active`); inclusions stay text, no `PackageItem` yet. |
+| Menus | `MenuPackage.selectionRules` = `[{ course, choose }]` over the menu's items; courses are a fixed list, no `MenuCourse` table. |
+| Private files | `PrivateBlob(key, data bytea)` holds file bytes (ADR-07). `CustomerDocument` has `customerId` and an optional `partyId` for bride/groom documents. |
+| After the event | `PostEventCharge` (extra plates, extra hours, other) is append-only; an invoice line points at it, so each charge is invoiced once. |
+| Bookings | `status` is an enum with labels from the `booking_status` list. Sub-events store `startsAt/endsAt` from a slot or custom times. `Booking.cancellation` (JSON) keeps the computed and the agreed refund. |
+| Documents | `DocumentPreset` and `GeneratedDocument` as designed; templates are code (`src/lib/pdf`), so there is no `DocumentTemplate` table. |
+| Numbers | Customer `SP-C-YYYY-#####`; receipt `SP-R-YYYY-YY-#####` per financial year; GST invoice `PREFIX/YY-YY/####` and credit note `PREFIX/YY-YY/####` (at most 16 characters), all from `number_sequence`. |
+
+`phase3_integrity` adds: append-only triggers on `ledger_entry`, `deposit_entry`, `post_event_charge`, `invoice_line`, `credit_note`, `credit_note_line`, `booking_status_history`, `generated_document`; `invoice` may change only its `status`; `quotation_version` is frozen once it leaves DRAFT (only status and its timestamps change, SENT → ACCEPTED/SUPERSEDED); `quotation_line` changes only while its version is a draft. Check constraints: positive amounts, payment/refund directions, adjustments need a reason, valid time ranges. A `pg_trgm` index speeds up customer name search.
+
 ## 4. Critical constraints (raw SQL in migrations)
 
 ### 4.1 No overlapping confirmed occupancy of a physical hall
@@ -184,7 +200,7 @@ Outstanding balance (computed, never stored as truth):
 ```sql
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
-ALTER TABLE "SlotOccupancy"
+ALTER TABLE "slot_occupancy"
   ADD CONSTRAINT slot_occupancy_no_confirmed_overlap
   EXCLUDE USING gist (
     "physicalHallId" WITH =,

@@ -6,6 +6,8 @@ export const E2E_USERS = {
   superAdmin: { email: "e2e-super-admin@example.test", role: "super_admin", name: "E2E Super Admin" },
   sales: { email: "e2e-sales@example.test", role: "sales", name: "E2E Sales" },
   admin: { email: "e2e-admin@example.test", role: "admin", name: "E2E Admin" },
+  owner: { email: "e2e-owner@example.test", role: "super_admin", name: "E2E Owner" },
+  kitchen: { email: "e2e-kitchen@example.test", role: "kitchen", name: "E2E Kitchen" },
 } as const;
 
 function base32Decode(input: string): Buffer {

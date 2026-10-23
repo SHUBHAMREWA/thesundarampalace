@@ -1,7 +1,7 @@
 # Architecture
 
 Status: **Phase 0 draft — awaiting approval.** Decisions marked *Proposed* need the owner's or developer's OK before Phase 1 starts.
-Last updated: 2026-10-23.
+Last updated: 2026-10-24.
 
 **Owner decision (2026-10-23): run on free tiers only — Vercel Hobby, Neon Free, Cloudinary Free — and buy nothing now. The domain is already purchased at Hostinger.** The design below fits inside those free limits. Known risks of that choice are stated in ADR-02 and ADR-03, and `docs/costs.md` lists the signals that would make an upgrade worth discussing.
 
@@ -31,8 +31,8 @@ flowchart LR
   app -->|Prisma, TLS| db[(Neon Free<br/>production project)]
   gha -->|nightly pg_dump, encrypted| bk[(Backup artifacts<br/>private GitHub repo)]
   app -->|signed upload / delivery| cld[Cloudinary Free<br/>public media]
-  app -->|server-only, Phase 3| priv[(Private document store<br/>decided in Phase 3)]
-  app -->|HMAC-signed HTML, Phase 3| pdf[PDF renderer<br/>Playwright Chromium<br/>free option decided in Phase 3]
+  app -->|server-only| priv[(Private files<br/>private_blob table in PostgreSQL)]
+  app -->|HMAC-signed HTML| pdf[pdf-service<br/>Playwright Chromium<br/>Render free]
   app -->|API| mail[Resend Free<br/>email]
   app -.->|wa.me links only| wa[WhatsApp]
   app --> sentry[Sentry Free]
@@ -59,8 +59,8 @@ Versions are the current stable releases checked on npm on 2026-10-23. Exact ver
 | Dates | `date-fns` + `@date-fns/tz` | latest | All display in `Asia/Kolkata`. |
 | Rich text | Tiptap (ProseMirror JSON) | latest | See ADR-13. |
 | Media | Cloudinary Node SDK + `next-cloudinary` | 2.x | |
-| Private storage | `src/lib/storage/private.ts` abstraction | — | Backend chosen in Phase 3 (ADR-07). |
-| PDF | Playwright Chromium | 1.64.x | Where it runs is chosen in Phase 3 (ADR-08). |
+| Private storage | `src/server/storage/private.ts` | — | PostgreSQL `private_blob` table (ADR-07). |
+| PDF | Playwright Chromium | 1.64.x | In the app locally, in `pdf-service/` on Render in production (ADR-08). |
 | Email | Resend SDK + React Email | latest | |
 | Errors | Sentry (`@sentry/nextjs`) | 11.x | |
 | Tests | Vitest, Playwright Test | 5.x / 1.64.x | |
@@ -116,27 +116,21 @@ Revisit if: a module needs independent scaling or a different runtime.
 - Asset metadata (alt text EN/HI, caption, photographer credit, usage permission, category) lives in our `MediaAsset` table, not in Cloudinary.
 - **Risk:** the free plan's 25 monthly credits are shared by storage, transformations and bandwidth (1 credit ≈ 1 GB). Video bandwidth burns them fastest: a 3 MB hero film viewed 10,000 times is ~30 GB, more than the whole allowance. Decision: **the compressed hero film is served from the app's own static files on Vercel** (`public/media/`), and Cloudinary handles images. The film is replaced by a deploy, not via the CMS; the poster image stays CMS-managed.
 
-### ADR-07 Private documents — *Deferred to Phase 3*
-Needed only from Phase 3 (customer and bride/groom documents, generated PDFs). Everything goes through `src/lib/storage/private.ts` (`put`, `streamForDownload`, `delete`) so the backend can change without touching the CRM. Free options:
+### ADR-07 Private documents — *Accepted (Phase 3): our own PostgreSQL*
+- **Decision:** private files (ID copies, customer photos, generated PDFs) are stored as bytes in a `private_blob` table in our own database, behind `src/server/storage/private.ts` (`putPrivateFile`, `readPrivateFile`, `deletePrivateFile`). Keys are random UUIDs.
+- **Why:** no extra account or card, nothing that could ever be served by a public URL, and the files are inside the nightly encrypted backup automatically. The Cloudinary `authenticated` option was rejected because one wrong upload flag would make an ID card public, and Cloudinary credentials don't exist yet.
+- Downloads only through `/api/private-files/[id]` and `/api/documents/[id]`: session → permission → audit entry → streamed with `no-store`, `nosniff` and a sandbox CSP.
+- Uploads are type-checked by content (JPEG, PNG, WebP, PDF) and limited to 4 MB (Vercel's request limit is 4.5 MB; Settings → Document wording).
+- **Limits and plan:** Neon Free has ~0.5 GB. To keep the database small, non-financial PDFs are deleted after 7 days (the record of who generated what stays); invoices, receipts, statements and credit notes are kept. `docs/costs.md` lists when to move files to Cloudflare R2 — only this module changes.
 
-| Option | Cost | Notes |
-|---|---|---|
-| **A. Cloudinary `authenticated` assets, downloaded only through our server** (recommended under the free-only rule) | $0, no card | Uses the existing account. Files are uploaded server-side with `type: authenticated` into a separate folder, and are never delivered by a Cloudinary URL to the browser: our download route checks permission, writes the audit log and streams the file. Shares the 25 credits (documents are small). Risk: a misconfigured upload could make a file public, so private uploads go through one tested function and a test asserts the public URL returns 401/404. |
-| B. Cloudflare R2 private bucket | $0 within 10 GB, **but a card must be on file** to enable R2 | Cleanest separation; S3-compatible. |
-
-Decision recorded at the start of Phase 3.
-
-### ADR-08 PDF rendering — *Deferred to Phase 3*
-- In every option, the main app renders the document to HTML with the same React template used for the on-screen preview, so preview and PDF can't drift.
-- Free options:
-
-| Option | Cost | Trade-off |
-|---|---|---|
-| **A. Small Playwright container (`pdf-service/`) on Render's free web service** (recommended) | $0 | Sleeps after 15 min idle; first PDF after a pause takes ~1 minute. Mitigated by waking it in the background as soon as a user opens the PDF dialog. Requests are HMAC-signed; the service has no DB access and blocks all outbound network calls; fonts (incl. Devanagari) are baked into the image. |
-| B. Chromium inside a Vercel function (`@sparticuz/chromium`) | $0 | No extra service, but large bundles, slow cold starts and fragile font handling on serverless. Will be tried in a short spike if A is not acceptable. |
-| C. Browser print ("Save as PDF") from the preview page | $0 | Always available as the "Print" button. No server-stored copy, so not enough on its own for invoices. |
-
-- Generated PDFs are stored in the private store (ADR-07) with a `GeneratedDocument` row and hash.
+### ADR-08 PDF rendering — *Accepted (Phase 3)*
+- The app renders every document to HTML from trusted templates (`src/lib/pdf/html.ts`, all values escaped, fonts embedded as data URLs, colours read from `globals.css`). The preview iframe and the PDF use the same HTML.
+- `PDF_RENDERER` chooses who turns HTML into PDF:
+  - `local` — Playwright Chromium inside the app (development and tests).
+  - `service` — `pdf-service/` (tiny Node + Playwright container) on Render's free web service. Requests are HMAC-signed with `PDF_SERVICE_SECRET` and expire after 5 minutes; the service has no database access and blocks all network requests. It sleeps after 15 minutes idle, so the CRM wakes it when someone opens the Documents tab.
+  - `none` — no server PDFs; staff use "Print / Save as PDF" from the preview and the copy is recorded as HTML.
+- Every generated document gets a `GeneratedDocument` row (type, template, ticked fields, reference, version, SHA-256, who). Financial documents keep their PDF; others for 7 days.
+- Rejected: Chromium inside a Vercel function (`@sparticuz/chromium`) — large bundle and slow cold starts on Hobby.
 
 ### ADR-09 Internationalisation: next-intl, localized JSON fields — *Proposed*
 - Public routes are `/{locale}/…` with `en` (default) and `hi`. CRM is English only.
@@ -152,8 +146,8 @@ Decision recorded at the start of Phase 3.
 
 ### ADR-11 Scheduled work and backups — *Accepted*
 - Vercel Hobby cron runs only once a day, so **GitHub Actions scheduled workflows** call `/api/cron/*` route handlers authenticated with a secret header:
-  - hourly: release expired holds, promote waitlist, retry failed outbox messages, hold-expiry reminders;
-  - daily (06:00 IST): follow-up digest, payment-due reminders, retention flags, invoice-sequence check, prune rate-limit buckets.
+  - hourly (`/api/cron/hourly`, Phase 3): release expired holds and promote the waitlist, hold-expiry reminders, retry failed outbox messages;
+  - daily (`/api/cron/daily`, 06:00 IST): payment-due reminders, delete 7-day-old non-financial PDF copies, prune rate-limit buckets and expired sessions.
 - GitHub's scheduler can run late by several minutes, so nothing depends on exact timing: hold expiry is also applied lazily on every read, and notifications are sent immediately when the action happens.
 - **Backups:** a nightly GitHub Actions job runs `pg_dump` (PostgreSQL 17 client), encrypts the dump with `age` (public key in the repo; private key held offline by the owner and developer), and stores it as a workflow artifact in the private repo with 30-day retention. On the 1st of each month the owner downloads that day's encrypted dump to the business's own storage (e.g. Google Drive). Restore is tested before launch and quarterly.
 - Free-tier budget: an hourly job uses ~720 of GitHub Free's 2,000 private-repo Actions minutes per month, leaving room for CI (verify the current allowance). If minutes run short, the scheduler drops to every 2 hours.
@@ -214,7 +208,7 @@ src/
     repositories/            Prisma access
     policies/                permission checks and data shaping
 prisma/                      schema.prisma, migrations/, seed.ts
-pdf-service/                 Dockerfile + tiny HTTP server (Phase 3, if ADR-08 option A)
+pdf-service/                 Dockerfile + tiny HTTP server (ADR-08)
 .github/workflows/           ci.yml, scheduler.yml, backup.yml
 tests/                       unit/, integration/, e2e/
 docs/
@@ -254,4 +248,4 @@ CI always uses a throwaway PostgreSQL container, so migrations are proven from s
 1. Accept Better Auth (ADR-05)?
 2. Whose name are the free accounts opened in? (Vercel Hobby is a personal account; see `docs/missing-business-info.md` §0.)
 3. Keep this kit folder as the repository root? (Work so far assumes yes.)
-4. Phase 3: private document store (ADR-07) and PDF renderer (ADR-08) — free options listed; decide when Phase 3 starts.
+4. ~~Phase 3: private document store and PDF renderer~~ — decided in Phase 3 (ADR-07, ADR-08).

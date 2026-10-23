@@ -167,3 +167,10 @@ All from shadcn/ui in `src/components/ui`, themed by tokens and extended with `c
 - A lint step (Phase 1) fails the build if a hex colour, `rgb(` or `hsl(` literal appears outside `src/app/globals.css`. PDF templates inline the same token file rather than defining their own colours.
 - No inline `style` for normal styling.
 - Adding a colour means adding a token here first, with the reason and its contrast numbers.
+
+## Phase 3 additions
+
+- `Alert` has `warning` and `success` variants (status tokens, outlined) for booking warnings such as "another hold on this slot".
+- Booking states use status tokens, not brand pinks: enquiry hold = info, tentative/quotation sent = warning, confirmed/in progress = success, cancelled = danger.
+- Calendar: confirmed = solid primary, tentative = warning outline, hold = dashed info outline, waitlist = dashed muted, released = struck through. A legend is always shown.
+- Documents (PDF/print) read the colour tokens from `globals.css` at render time; templates contain no colour literals. Kitchen sheets are black on white with 13 pt text.

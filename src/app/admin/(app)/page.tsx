@@ -8,7 +8,11 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/lib/db";
 import { formatIST } from "@/lib/time";
-import { requirePermission } from "@/server/auth/session";
+import { redirect } from "next/navigation";
+
+import { requirePermission, requireUser } from "@/server/auth/session";
+
+import { BookingPanel } from "./booking-panel";
 import { can } from "@/server/policies/authorize";
 import { leadVisibility } from "@/server/services/leads";
 import { lookupOptions } from "@/server/services/lookups";
@@ -17,18 +21,20 @@ export const metadata: Metadata = { title: "Dashboard" };
 
 /** Role-aware dashboard: counts come from real records only (MASTER_PROMPT §16). */
 export default async function DashboardPage() {
+  const current = await requireUser();
+  // Kitchen staff have no dashboard; their home is the kitchen sheets.
+  if (!current.permissions.has("dashboard.view") && current.permissions.has("kitchen.read")) redirect("/admin/kitchen");
   const user = await requirePermission("dashboard.view");
+  const bookingPanel = can(user, "bookings.read") ? <BookingPanel user={user} /> : null;
   const firstName = user.name.split(" ")[0];
 
   if (!can(user, "leads.read")) {
     return (
       <>
         <PageHeader title={`Welcome, ${firstName}`} description="The Sundaram Palace CRM" />
-        <EmptyState
-          icon={Inbox}
-          title="Nothing to show yet"
-          description="Bookings, events and tasks for your role will appear here as those modules go live."
-        />
+        {bookingPanel ?? (
+          <EmptyState icon={Inbox} title="Nothing to show yet" description="Work for your role will appear here." />
+        )}
       </>
     );
   }
@@ -70,6 +76,8 @@ export default async function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      {bookingPanel ? <div className="mt-6">{bookingPanel}</div> : null}
 
       <Card className="mt-6">
         <CardHeader>

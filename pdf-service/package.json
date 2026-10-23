@@ -1,0 +1,13 @@
+{
+  "name": "sundaram-pdf-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "HTML to PDF renderer for The Sundaram Palace CRM (no database access)",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.64.1"
+  }
+}

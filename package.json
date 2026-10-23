@@ -24,7 +24,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
-    "db:prod": "node scripts/prod-prepare.mjs"
+    "db:prod": "node scripts/prod-prepare.mjs",
+    "db:seed:sample": "tsx prisma/seed-sample.ts"
   },
   "dependencies": {
     "@date-fns/tz": "1.5.0",

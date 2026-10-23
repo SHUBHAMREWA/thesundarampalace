@@ -1,7 +1,7 @@
 # Deployment and operations
 
 Status: **Phase 0 plan, free-tier setup** (owner decision 2026-10-23: buy nothing now; domain already at Hostinger). Steps are carried out in Phase 1 (accounts, CI, staging) and Phase 2 (production). See `docs/architecture.md` ADR-02, 03, 06, 11.
-Last updated: 2026-10-23.
+Last updated: 2026-10-24.
 
 ## 1. Accounts to create (all free)
 
@@ -17,9 +17,9 @@ Open accounts with a shared business email if possible, so the business keeps ow
 | Resend | Free | Email from the business domain | 2 |
 | UptimeRobot | Free | Uptime alerts | 2 |
 | Hostinger | Already purchased | Domain + DNS | 2 |
-| Render | Free (if ADR-08 option A) | PDF renderer | 3 |
+| Render | Free web service (Docker, `pdf-service/`) | PDF renderer (ADR-08) | 3 |
 
-No card or payment is needed for any of these, except Cloudflare R2 if it is chosen in Phase 3.
+No card or payment is needed for any of these. Private documents are stored in our own database (ADR-07), so Cloudflare R2 is not needed.
 
 ## 2. Environment variables (draft `.env.example`)
 
@@ -56,10 +56,10 @@ CRON_SECRET=change-me
 SENTRY_DSN=
 NEXT_PUBLIC_SENTRY_DSN=
 
-# Phase 3 — private documents and PDF renderer (set when ADR-07/08 are decided)
-PRIVATE_STORAGE_DRIVER=none     # cloudinary-authenticated | r2
-PDF_SERVICE_URL=
-PDF_SERVICE_HMAC_SECRET=
+# Phase 3 — PDFs (ADR-08). Private documents need no settings (stored in PostgreSQL, ADR-07).
+PDF_RENDERER=service            # local (development) | service | none
+PDF_SERVICE_URL=https://<pdf-service>.onrender.com
+PDF_SERVICE_SECRET=change-me-40-random-characters
 
 # Phase 5 — WhatsApp API stays off in free mode (wa.me links need no config)
 WHATSAPP_PROVIDER=none
@@ -107,10 +107,16 @@ Vercel Hobby cron runs only once a day, so GitHub Actions calls the app's cron r
 
 | Schedule (UTC) | Route | Does |
 |---|---|---|
-| `0 * * * *` (hourly) | `/api/cron/hourly` | Release expired holds, promote waitlist, retry failed outbox messages, hold-expiry reminders |
-| `30 0 * * *` (06:00 IST) | `/api/cron/daily` | Follow-up digest, payment-due reminders, retention flags, sequence check, prune rate-limit buckets |
+| `5 * * * *` (hourly) | `/api/cron/hourly` | Release expired holds, promote the waitlist, hold-expiry reminders, retry failed outbox messages |
+| `30 0 * * *` (06:00 IST) | `/api/cron/daily` | Payment-due reminders, delete 7-day-old non-financial PDF copies, prune rate-limit buckets and expired sessions, retry outbox |
+
+Both jobs can also be started by hand (Actions → Scheduler → Run workflow → choose hourly or daily).
 
 GitHub may start scheduled runs late; nothing depends on exact timing (notifications go out immediately with `after()`, and holds also expire lazily on read).
+
+## 6a. PDF service (Phase 3)
+
+See `pdf-service/README.md`. Deploy it on Render (free, Docker, root directory `pdf-service`) with `PDF_SERVICE_SECRET`, then set `PDF_RENDERER=service`, `PDF_SERVICE_URL` and the same secret in Vercel. Until then use `PDF_RENDERER=none`: staff print from the preview ("Save as PDF") and the app keeps an HTML copy of financial documents.
 
 ## 7. Backups and restore (`.github/workflows/backup.yml`)
 

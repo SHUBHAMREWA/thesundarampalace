@@ -45,6 +45,10 @@ export default async function globalSetup(): Promise<void> {
       const role = await db.role.findUniqueOrThrow({ where: { key: user.role } });
       await db.userRole.create({ data: { userId: created.id, roleId: role.id } });
     }
+    // An unpublished hall for the booking flow (never shown on the website).
+    await db.hall.create({
+      data: { slug: "e2e-booking-hall", name: { en: "E2E Booking Hall" }, facilities: [], eventTypeKeys: [], published: false, setupBufferMinutes: 60, teardownBufferMinutes: 60 },
+    });
   } finally {
     await db.$disconnect();
   }

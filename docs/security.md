@@ -11,7 +11,7 @@ Last updated: 2026-10-23.
 | Internal | Lead pipeline, tasks, vendor list, reports | Staff by permission | PostgreSQL |
 | Personal | Names, phones, emails, addresses, DOB, anniversary, marital status, bride/groom contacts | Staff whose role needs it | PostgreSQL |
 | Financial | Quotations, ledger, invoices, deposits, expenses | Accounts, Managers, Admins | PostgreSQL (append-only) |
-| Restricted | Identity documents (PAN, masked Aadhaar), customer photos | `documents.sensitive.read` only, every access logged | Private document store (backend chosen in Phase 3, `architecture.md` ADR-07) |
+| Restricted | Identity documents (PAN, masked Aadhaar), customer photos | `documents.sensitive.read` only, every access logged | `private_blob` table in our PostgreSQL (`architecture.md` ADR-07) |
 | Secrets | API keys, DB URLs, HMAC secrets, TOTP secrets | Nobody in the app UI | Vercel / GitHub Actions secrets; TOTP secrets encrypted at rest |
 
 Main threats: public form spam and abuse; staff account takeover; a staff member seeing more than their role needs; leaking private documents through a guessable or permanent URL; tampering with financial history; injection via CMS content or PDF templates; date-check endpoint leaking who booked what.
@@ -63,10 +63,18 @@ Main threats: public form spam and abuse; staff account takeover; a staff member
 
 - Upload validation by magic bytes (not extension); allowlist JPEG, PNG, WebP, PDF (+ MP4/WebM for public video). Size limits from Settings (proposed: images 10 MB, PDFs 15 MB, video 50 MB before compression).
 - EXIF (including GPS) stripped from public images.
-- Public media → Cloudinary signed upload. Private documents → `src/lib/storage/private.ts` (Cloudinary `authenticated` assets or R2, decided in Phase 3); object keys are random UUIDs, never names.
+- Public media → Cloudinary signed upload. Private documents → `src/server/storage/private.ts`, stored in the `private_blob` table; keys are random UUIDs, never names. There is no storage URL at all.
 - Download: `/api/documents/[id]/download` → session → permission → audit log → the server streams the file (or, with R2, redirects to a presigned URL valid ≤ 5 minutes). Storage URLs are never stored or rendered in HTML.
-- A test asserts that a private document cannot be fetched by its storage URL without our server.
+- Phase 3 implementation: uploads need `documents.sensitive.upload`, are sniffed by magic bytes (JPEG/PNG/WebP/PDF), limited to 4 MB, and need a stated purpose. `/api/private-files/[id]` and `/api/documents/[id]` check the session (including required 2FA), the permission and booking visibility, write `document.viewed` / `document.downloaded` audit entries with IP, and stream with `no-store`, `nosniff` and a sandbox CSP. Tests: wrong type rejected, other roles get 403, every view is audit-logged.
 - Identity documents: optional, only for a configured purpose; masked Aadhaar preferred; no Aadhaar number columns anywhere; excluded from PDFs by default; WhatsApp/email never attach them.
+
+### Money and documents (Phase 3)
+
+- Financial history can't be edited or deleted — database triggers enforce it on ledger, deposits, post-event charges, invoices (status only), credit notes, sent quotations and the status history. Corrections are reversal/adjustment entries with a reason.
+- Payments, refunds, deposits, charges, invoices and credit notes carry an idempotency key, so a double submit records once.
+- No card numbers, CVV or UPI PINs are ever asked for or stored.
+- Documents are built from escaped data in trusted templates; the field picker drops any field the user's role can't see, and sensitive fields (address, bride/groom, internal notes) start unticked. The preview route sends a CSP with no scripts and no network access.
+- Operations staff see only bookings they are assigned to and never money; kitchen staff see only confirmed functions' menus and plate counts.
 
 ## 5. Web security
 
@@ -113,7 +121,7 @@ The design follows the Digital Personal Data Protection Act, 2023. The DPDP Rule
 
 - Free-tier setup: Neon Free gives only a 6-hour restore window, so a nightly `pg_dump` is encrypted with `age` and kept as a private GitHub Actions artifact for 30 days; the owner downloads one encrypted copy per month to the business's own storage. Details in `docs/deployment.md` §7.
 - Backups contain personal data: they are always encrypted before leaving the runner, and the private key is never stored in GitHub.
-- Private documents: the app never hard-deletes an object directly; it marks it deleted and a scheduled job purges it after 30 days, so accidental deletes are recoverable.
+- Private documents: deleting one needs a reason; the bytes are removed at once and the metadata row keeps who deleted it and when (audit-logged). An accidental delete can be recovered from the encrypted nightly backups for 30 days.
 - Restore is tested before launch and quarterly; the result is written to `docs/deployment.md`.
 
 ## 9. Incident and breach response

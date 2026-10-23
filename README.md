@@ -41,6 +41,7 @@ Other development commands:
 | `npm run db:local` | Only the local database |
 | `npm run db:migrate -- --name <name>` | Create a new migration after editing `prisma/schema.prisma` |
 | `npm run db:studio` | Browse the local database |
+| `npm run db:seed:sample` | Optional fake demo data: sample halls, slots, tax categories, menu and a 5-day sample wedding (development only) |
 
 ## Staging / production database
 

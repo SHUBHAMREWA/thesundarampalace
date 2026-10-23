@@ -21,6 +21,14 @@ import type { ActionState } from "@/server/actions/helpers";
 
 const PendingContext = createContext<boolean | null>(null);
 
+/** Field errors of the surrounding ActionPanel, so fields rendered by server components show their own errors. */
+export const FormErrorsContext = createContext<Record<string, string> | undefined>(undefined);
+
+function useFieldError(name: string, explicit?: string): string | undefined {
+  const errors = use(FormErrorsContext);
+  return explicit ?? errors?.[name];
+}
+
 /**
  * <form> for useActionState actions that does NOT clear the fields afterwards
  * (React resets uncontrolled forms after every action, which would wipe a
@@ -59,25 +67,71 @@ export function SubmitButton({ children, className, ...props }: ComponentProps<t
   );
 }
 
-/** Toast on success, redirect when asked, alert on failure. */
-export function ActionFeedback({ state, resetOn }: { state: ActionState; resetOn?: React.RefObject<HTMLFormElement | null> }) {
+/**
+ * Toast on success, redirect when asked, alert on failure. Warnings (e.g. a
+ * hold on the same slot) stay on screen; `inline` also keeps the success
+ * message visible (used by "Check availability").
+ */
+export function ActionFeedback({
+  state,
+  resetOn,
+  inline = false,
+}: {
+  state: ActionState;
+  resetOn?: React.RefObject<HTMLFormElement | null>;
+  inline?: boolean;
+}) {
+  const body = <ActionToast state={state} resetOn={resetOn} silent={inline} />;
+  if (state.ok) {
+    if (!inline && !state.warnings?.length) return body;
+    return (
+      <>
+        {body}
+        <Alert variant={state.warnings?.length ? "warning" : "success"} role="status">
+          <AlertDescription>
+            {inline && state.message ? <p className="font-medium">{state.message}</p> : null}
+            {state.warnings?.length ? (
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                {state.warnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            ) : null}
+          </AlertDescription>
+        </Alert>
+      </>
+    );
+  }
+  if (!state.message) return null;
+  return (
+    <Alert variant="destructive" role="alert">
+      <AlertDescription>
+        <p>{state.message}</p>
+        {state.warnings?.length ? (
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {state.warnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        ) : null}
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+function ActionToast({ state, resetOn, silent }: { state: ActionState; resetOn?: React.RefObject<HTMLFormElement | null>; silent: boolean }) {
   const router = useRouter();
   const lastAt = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (!state.at || state.at === lastAt.current) return;
     lastAt.current = state.at;
     if (state.ok) {
-      if (state.message) toast.success(state.message);
+      if (state.message && !silent) toast.success(state.message);
       if (resetOn?.current) resetOn.current.reset();
       if (state.redirectTo) router.push(state.redirectTo);
     }
-  }, [state, router, resetOn]);
-  if (state.ok || !state.message) return null;
-  return (
-    <Alert variant="destructive" role="alert">
-      <AlertDescription>{state.message}</AlertDescription>
-    </Alert>
-  );
+  }, [state, router, resetOn, silent]);
+  return null;
 }
 
 export function Field({
@@ -121,6 +175,7 @@ export function TextField({
   className,
   ...props
 }: ComponentProps<typeof Input> & { name: string; label: string; error?: string; hint?: string }) {
+  error = useFieldError(name, error);
   const uid = useId();
   const id = props.id ?? `f${uid}${name.replace(/[^\w-]/g, "-")}`;
   return (
@@ -145,6 +200,7 @@ export function TextAreaField({
   className,
   ...props
 }: ComponentProps<typeof Textarea> & { name: string; label: string; error?: string; hint?: string }) {
+  error = useFieldError(name, error);
   const uid = useId();
   const id = props.id ?? `f${uid}${name.replace(/[^\w-]/g, "-")}`;
   return (
@@ -181,6 +237,7 @@ export function SelectField({
   options: { value: string; label: string }[];
   placeholder?: string;
 }) {
+  error = useFieldError(name, error);
   const uid = useId();
   const id = props.id ?? `f${uid}${name.replace(/[^\w-]/g, "-")}`;
   return (

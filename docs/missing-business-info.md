@@ -55,15 +55,15 @@ Repeat for every space.
 | Facilities: AC, power backup, stage, bridal/green room, lift, ramps/accessibility | Phase 2 | Missing | |
 | Parking capacity (cars / two-wheelers) | Phase 2 | Missing | |
 | Floor plan (sketch with measurements is fine) | Phase 2 | Missing | |
-| Which spaces can be combined (e.g. Hall A + Hall B) | Phase 3 | Missing | Affects conflict detection. |
+| Which spaces can be combined (e.g. Hall A + Hall B) | Phase 3 | Missing | Entered in CRM → Catalog and pricing → Halls and slots. Affects conflict detection. |
 | Suitable event types per space | Phase 2 | Missing | |
 
 ## 4. Slots, timings and house rules
 
 | Item | Needed by | Status | Notes |
 |---|---|---|---|
-| Slot definitions per hall (Morning / Evening / Full day / custom) with exact times | Phase 3 (shown as info in Phase 2) | Default | Defaults are examples only (e.g. 08:00–15:00, 18:00–01:00). |
-| Setup buffer and teardown buffer per hall (hours) | Phase 3 | Missing | |
+| Slot definitions per hall (Morning / Evening / Full day / custom) with exact times | Phase 3 | Missing | No slots are seeded; entered in Catalog and pricing. Staff can use custom times meanwhile. |
+| Setup buffer and teardown buffer per hall (hours) | Phase 3 | Missing | 0 until entered (Catalog and pricing → Halls and slots). |
 | Music / DJ cut-off time | Phase 2 (policy page) | Missing | |
 | Other house rules (outside vendors, fireworks, alcohol, decoration restrictions, etc.) | Phase 2 | Missing | Only what the business states. |
 | Site-visit days and time windows | Phase 5 (Phase 2 form asks preferred date) | Missing | |
@@ -97,11 +97,18 @@ Repeat for every space.
 
 | Item | Needed by | Status | Notes |
 |---|---|---|---|
-| Booking advance % at confirmation | Phase 3 | Missing | |
+| Booking advance % at confirmation | Phase 3 | Missing | Settings → Booking policy (empty = no suggestion). |
 | Payment schedule (instalments and due dates relative to the event) | Phase 3 | Missing | |
 | Cancellation slabs (days before event → % refundable) | Phase 2 (policy page), Phase 3 (logic) | Missing | |
 | Security deposit: amount, what can be deducted, refund timeline | Phase 3 | Missing | |
-| Tentative hold duration (default proposal 72 h) and reminder timing | Phase 3 | Default | |
+| Tentative hold duration (default proposal 72 h) and reminder timing (12 h before) | Phase 3 | Default | Settings → Booking policy. |
+| Guest-count lock (days before each function; placeholder 7) | Phase 3 | Default | After the lock only a Manager can change guaranteed plates. |
+| Quotation validity (placeholder 15 days) | Phase 3 | Default | |
+| Are unserved guaranteed plates ever refunded? (placeholder: no) | Phase 3 | Default | |
+| Per-plate rates, minimum plates and which menu courses are "choose N" | Phase 3 | Missing | Catalog and pricing → Menu packages. |
+| Season / weekend / muhurat price adjustments | Phase 3 | Missing | Optional pricing rules. |
+| Standard prices of chargeable services (hall rental, décor, lighting…) | Phase 3 | Missing | Catalog and pricing → Services; can also be typed per quotation. |
+| Quotation terms, payment terms, booking conditions, bank/UPI details for documents | Phase 3 | Missing | Settings → Document wording; documents print "To be confirmed" until then. |
 | Response-time promise shown after enquiry (e.g. "within 2 working hours") | Phase 2 | Missing | Shown on the success screen. |
 | Duplicate-enquiry window (same phone within N days updates the open lead; proposal 30 days) | Phase 2 | Default | |
 
@@ -109,11 +116,11 @@ Repeat for every space.
 
 | Item | Needed by | Status | Notes |
 |---|---|---|---|
-| Legal name, GSTIN, registered address, state code | Phase 3 | Missing | |
+| Legal name, GSTIN, registered address, state code | Phase 3 | Missing | **Blocks tax invoices** (the CRM refuses to issue one without them). Settings → Business details. |
 | **GST registration type: regular or composition scheme?** | Phase 3 | Missing | A composition taxpayer issues a *bill of supply*, not a tax invoice. Changes the invoice design. |
-| SAC code and GST rate for each service category (hall rental, catering, décor, sound/light, other) | Phase 3 | Missing | Never hardcoded; entered in Settings. |
+| SAC code and GST rate for each service category (hall rental, catering, décor, sound/light, other) | Phase 3 | Missing | Never hardcoded; entered as tax categories in Catalog and pricing → Taxes. No tax category exists until then, so quotations can't be priced. |
 | Are quoted prices tax-inclusive or tax-exclusive by default? | Phase 3 | Missing | |
-| Invoice number prefix and format; credit-note prefix | Phase 3 | Missing | Numbering restarts each financial year (April–March). |
+| Invoice number prefix and format; credit-note prefix | Phase 3 | Default | Placeholders `SP/26-27/0001` and `SPCN/26-27/0001` (GST limit: 16 characters). Restart each April. |
 | Round invoice totals to the nearest rupee? | Phase 3 | Missing | |
 | Tax treatment of security-deposit deductions | Phase 3 | Missing | |
 | Legally required retention period for invoices and ledgers | Phase 3 | Missing | Accountant/lawyer to confirm; drives the data-retention settings. |

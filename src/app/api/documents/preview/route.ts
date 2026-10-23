@@ -1,4 +1,4 @@
-import { type NextRequest } from "next/server";
+import { connection, type NextRequest } from "next/server";
 
 import { DOCUMENT_PREVIEW_CSP } from "@/lib/security/headers";
 import { getApiUser } from "@/server/auth/session";
@@ -13,6 +13,7 @@ import { documentRequestFromSearch, previewDocumentHtml } from "@/server/service
  * network, only embedded fonts and inline styles, framable by the CRM only.
  */
 export async function GET(request: NextRequest) {
+  await connection(); // per-request: never prerendered at build time
   try {
     const user = await getApiUser();
     if (!user) throw new UnauthenticatedError();

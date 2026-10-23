@@ -41,6 +41,7 @@ Full requirements: `MASTER_PROMPT.md`. Read it at the start of every new phase.
 - Build: `npm run build`
 - Migrations (dev): `npm run db:migrate -- --name <name>` then `npx prisma generate`
 - Seed: `npm run db:seed` (roles, lists, settings; local Super Admin from `.env` in development)
+- Sample data (development only, opt-in): `npm run db:seed:sample` — fake halls, taxes, menu and a 5-day sample wedding
 
 ## Framework notes
 - Next.js 16 with Cache Components: read `AGENTS.md` and `node_modules/next/dist/docs/` before using unfamiliar APIs. `middleware` is now `src/proxy.ts`.
@@ -49,6 +50,9 @@ Full requirements: `MASTER_PROMPT.md`. Read it at the start of every new phase.
 - Prisma 7: client is generated into `src/generated/prisma` (git-ignored); import from `@/generated/prisma/client`.
 - Public data is read through `src/server/cms/queries.ts` (`"use cache"` + `cacheTag("cms")`). Every CMS/settings write must call `updateTag(CMS_TAG)` so the static site refreshes.
 - CRM/CMS forms use `ActionForm` from `src/components/forms/form-kit.tsx` (React would otherwise clear fields after a failed save).
+- Money and bookings: rules live in `src/lib/booking` and `src/lib/money` (pure, unit-tested) and are enforced in `src/server/services`. Financial tables are append-only by database triggers; corrections are new entries. Money forms send an idempotency key (`ActionPanel money`).
+- Documents: templates in `src/lib/pdf` (escaped HTML, embedded fonts, tokens read from `globals.css`); the preview route and the PDF use the same HTML. `PDF_RENDERER=local|service|none`.
+- Private files are stored in PostgreSQL (`src/server/storage/private.ts`) and only streamed by permission-checked, audit-logged routes.
 - A fresh database must be migrated **and seeded** (`npm run db:deploy && npm run db:seed`) before `npm run build`, because public pages are prerendered from CMS rows.
 
 ## Phase order

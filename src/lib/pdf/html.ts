@@ -101,6 +101,7 @@ body.tpl-kitchen { font-size: 13pt; color: black; background: white; }
 .tpl-kitchen .function { border: 2px solid black; }
 .tpl-kitchen .rule { background: black; }
 .tpl-kitchen .menu-course { font-size: 13pt; }
+.tpl-kitchen h3 { font-size: 13pt; }
 `;
 
 function has(data: DocumentData, key: FieldKey) {
@@ -187,7 +188,7 @@ function linesTable(lines: DocLine[], opts: { detailed: boolean; showDiscount: b
       <th>#</th><th>Description</th>${opts.showSac ? "<th>SAC</th>" : ""}<th class="num">Qty</th><th class="num">Rate</th>
       ${opts.showDiscount ? '<th class="num">Discount</th>' : ""}
       ${opts.showTax ? '<th class="num">Taxable</th><th class="num">GST %</th>' + taxCols.map((c) => `<th class="num">${c}</th>`).join("") : ""}
-      <th class="num">Amount</th>
+      <th class="num">${opts.showTax ? "Amount" : "Amount incl. GST"}</th>
     </tr></thead>
     <tbody>${lines
       .map(

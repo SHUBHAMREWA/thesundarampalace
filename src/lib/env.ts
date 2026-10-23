@@ -22,10 +22,19 @@ const schema = z
     RESEND_API_KEY: z.string().optional(),
     EMAIL_FROM: z.string().optional(),
     SENTRY_DSN: z.string().optional(),
+    PDF_RENDERER: z.enum(["local", "service", "none"]).optional(),
+    PDF_SERVICE_URL: z.url().optional().or(z.literal("")),
+    PDF_SERVICE_SECRET: z.string().optional(),
   })
   .superRefine((env, ctx) => {
+    if (env.PDF_RENDERER === "service" && (!env.PDF_SERVICE_URL || (env.PDF_SERVICE_SECRET ?? "").length < 32)) {
+      ctx.addIssue({ code: "custom", path: ["PDF_SERVICE_URL"], message: "PDF_RENDERER=service needs PDF_SERVICE_URL and a 32+ character PDF_SERVICE_SECRET" });
+    }
     const strict = env.APP_ENV === "staging" || env.APP_ENV === "production";
     if (!strict) return;
+    if (env.PDF_RENDERER === "local") {
+      ctx.addIssue({ code: "custom", path: ["PDF_RENDERER"], message: "local Chromium is for development; use service or none" });
+    }
     for (const key of ["BETTER_AUTH_SECRET", "CRON_SECRET"] as const) {
       if (env[key].includes("change-me")) {
         ctx.addIssue({

@@ -10,7 +10,7 @@ Free tiers have hard limits. This document lists them, how the app stays inside 
 | When | What it costs |
 |---|---|
 | Phases 0–2 (build + website launch) | **$0/month.** Domain renewal at Hostinger once a year (already bought). |
-| Phase 3 (bookings, PDFs, documents) | **$0/month** with the free options in `architecture.md` ADR-07/08. R2 (if chosen) needs a card on file but costs $0 inside 10 GB. |
+| Phase 3 (bookings, PDFs, documents) | **$0/month.** Private files live in PostgreSQL (ADR-07); PDFs come from `pdf-service/` on Render's free plan (ADR-08). |
 | Phase 5 (WhatsApp) | **$0** with `wa.me` click-to-chat links. Automated WhatsApp messages are charged per message by Meta and stay off unless the business decides to pay. |
 
 ## 2. Per service
@@ -24,8 +24,8 @@ Free tiers have hard limits. This document lists them, how the app stays inside 
 | **GitHub** | Repo, CI, scheduler, backups | **Free** (private repo) | Actions minutes and artifact storage quota for private repos (~2,000 min/month; verify). | Jobs stop until the next month. | Hourly scheduler ~720 min; CI kept lean; backups small. | To verify |
 | **Sentry** | Error tracking | **Free** | Monthly error quota (verify). | Extra events dropped. | PII scrubbing, sampling. | To verify |
 | **UptimeRobot** | Uptime alerts | **Free** | A few dozen monitors at 5-min intervals (verify). | — | 2 monitors. | To verify |
-| **Render** (Phase 3, option A) | PDF renderer | **Free web service** | Sleeps after 15 min idle (~1 min to wake); 750 instance-hours/month per workspace. | Slow first PDF after idle. | Wake it when the PDF dialog opens. | Third-party (several agree) |
-| **Cloudflare R2** (Phase 3, option B) | Private documents | Free tier | 10 GB storage, 1M writes, 10M reads/month, no egress fee. **Card required to enable.** | Billed beyond free tier. | Only if the owner accepts a card on file. | Third-party (consistent) |
+| **Render** (Phase 3) | PDF renderer (`pdf-service/`) | **Free web service** | Sleeps after 15 min idle (~1 min to wake); 750 instance-hours/month per workspace. | Slow first PDF after idle. | Wake it when the PDF dialog opens. | Third-party (several agree) |
+| **Cloudflare R2** (not used yet) | Private documents if the database fills up | Free tier | 10 GB storage, no egress fee. **Card required to enable.** | Billed beyond free tier. | Move only when Neon storage passes ~70% (see §3). | Third-party (consistent) |
 | **WhatsApp** | Customer chat | `wa.me` links (free) | — | — | No API messages unless the business decides to pay per message (India 2026: marketing ≈ ₹0.78/message; utility lower). | Meta docs + third-party rate tables |
 | **Hostinger** | Domain + DNS | Already purchased | — | Site and email stop if the domain lapses. | Turn on auto-renew. | — |
 
@@ -33,7 +33,7 @@ Free tiers have hard limits. This document lists them, how the app stays inside 
 
 | Check | Where | Act when |
 |---|---|---|
-| Neon compute-hours and storage (prod project) | Neon console → Usage | > 70% of the monthly allowance |
+| Neon compute-hours and storage (prod project) | Neon console → Usage | > 70% of the monthly allowance. Private documents and financial PDFs live in the database (~50–200 KB per PDF, up to 4 MB per ID copy): if storage grows past 70%, move `private_blob` to Cloudflare R2 (only `src/server/storage/private.ts` changes). |
 | Cloudinary credits | Cloudinary console → Usage | > 70% |
 | Vercel transfer and function usage | Vercel dashboard → Usage | > 70% |
 | Resend sends | Resend dashboard | Any day near 100 |

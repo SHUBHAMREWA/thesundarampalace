@@ -1,6 +1,10 @@
 import { MessageCircle, Phone } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
+
+import { InlineAction } from "@/components/crm/action-kit";
+import { convertLeadAction } from "@/server/actions/customers";
 
 import { PageHeader } from "@/components/crm/page-header";
 import { LeadStatusBadge } from "@/components/crm/status-badge";
@@ -66,6 +70,24 @@ export default async function LeadPage({ params }: PageProps<"/admin/leads/[id]"
         crumbs={[{ label: "Dashboard", href: "/admin" }, { label: "Leads", href: "/admin/leads" }, { label: lead.reference }]}
         actions={
           <>
+            {lead.customerId ? (
+              <>
+                {can(user, "customers.read") ? (
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/admin/customers/${lead.customerId}`}>Customer</Link>
+                  </Button>
+                ) : null}
+                {can(user, "bookings.edit") ? (
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/admin/bookings/new?customerId=${lead.customerId}&leadId=${lead.id}`}>New booking</Link>
+                  </Button>
+                ) : null}
+              </>
+            ) : can(user, "customers.edit") && canEdit ? (
+              <InlineAction action={convertLeadAction.bind(null, lead.id)} variant="outline" size="sm">
+                Convert to customer
+              </InlineAction>
+            ) : null}
             <Button asChild variant="outline" size="sm">
               <a href={telLink(lead.phone)}>
                 <Phone aria-hidden="true" /> Call
