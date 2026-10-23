@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+
+# Next.js / build output
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment and secrets — never commit (only .env.example)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.age
+
+# Tests
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# Private / customer data must never enter Git
+private/
+uploads/
+backups/
+*.dump
+*.sql.gz
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Vercel
+.vercel/
+
+# Claude Code local settings
+.claude/settings.local.json
