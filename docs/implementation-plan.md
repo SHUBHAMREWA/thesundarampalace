@@ -12,22 +12,23 @@ Companion docs: `architecture.md` (decisions), `database-design.md` (model), `de
 - Current stable packages were checked on npm. Two version traps to avoid: npm's `latest` tag for the `prisma` CLI points at an 8.0 release candidate (we pin 7.10.x), and TypeScript 7.0 is not yet supported by Next.js' default type-checker (we pin 6.0.x).
 - No business facts were supplied. **Nothing is known yet about the city, halls, capacities, menus, prices or policies** — all are tracked in `missing-business-info.md`. Phase 1 doesn't need them; Phase 2 does.
 - Design tokens: four contrast problems found (muted on lavender, gold on light, input borders, warning text); fixes proposed in `design-system.md` §2.
-- Vercel's free plan can't legally host this site (commercial use), so production hosting has a monthly cost (`costs.md`).
+- **Owner decision (2026-10-23): free tiers only** — Vercel Hobby, Neon Free, Cloudinary Free, plus free Resend, GitHub, Sentry and UptimeRobot. Nothing is bought now; the domain is already at Hostinger. The design was adjusted to fit: static public pages, scheduler and backups on GitHub Actions, hero film served from Vercel, Phase 3 PDF/document options that cost $0 (`architecture.md`, `costs.md`).
+- Known risk of that decision: Vercel's terms reserve Hobby for non-commercial use. The app avoids Vercel-only features so it can move if Vercel objects.
 
 ## 1. Decisions needed before Phase 1
 
 | # | Decision | Recommendation | Impact if changed later |
 |---|---|---|---|
-| D1 | Hosting | Vercel Pro (~$20/mo) for the app + Render Starter ($7/mo, from Phase 3) for PDFs | Medium — deployment config only |
-| D2 | Database | Neon (free branches for dev; paid usage plan for production) | High after launch (data migration) |
-| D3 | Auth library | Better Auth with TOTP 2FA | High after Phase 1 |
-| D4 | Private storage | Cloudflare R2 behind a storage abstraction | Low (abstraction) |
-| D5 | Account ownership | Accounts in the business's name, developer invited | High (transfer is painful) |
+| D1 | Hosting | **Decided:** Vercel Hobby (free) | Medium — deployment config only |
+| D2 | Database | **Decided:** Neon Free, separate `sundaram-prod` and `sundaram-dev` projects | High after launch (data migration) |
+| D3 | Auth library | Better Auth with TOTP 2FA (free) | High after Phase 1 |
+| D4 | Private storage + PDF renderer | **Deferred to Phase 3.** Free options in `architecture.md` ADR-07/08 | Low (abstraction) |
+| D5 | Account ownership | Free accounts opened with a business email; agree in writing who owns the Vercel Hobby account (it's personal, no team seats) | High (transfer is painful) |
 | D6 | Token fixes | Approve `--color-border-strong: #9E8994` and `--color-warning: #946118` | Low |
 | D7 | Repo location | Keep this folder as the repository root (it already holds `.claude/` and `CLAUDE.md`) | Low |
-| D8 | Local database | Neon dev branch (no install) vs native PostgreSQL 17 | Low |
+| D8 | Local database | Neon `sundaram-dev` project (no install) vs native PostgreSQL 17 | Low |
 
-Business info needed early (not blocking Phase 1, blocking Phase 2): city/address, hall names, domain, logo, photos — see `missing-business-info.md` §0.
+Business info needed early (not blocking Phase 1, blocking Phase 2): city/address, hall names, the exact domain name and Hostinger DNS access, logo, photos — see `missing-business-info.md` §0.
 
 ## 2. Phase 1 — Foundation
 
@@ -47,7 +48,8 @@ Goal: an empty but production-shaped app: design system, database, auth with 2FA
 | 1.10 | Layouts: public website shell (`[locale]` with next-intl, header/footer placeholders, language toggle) and CRM shell (sidebar, mobile nav, breadcrumbs, empty dashboard) | sundaram-design-system |
 | 1.11 | Settings framework (typed sections, admin page skeleton), reference-number generator (`SP-L-…`, `SP-B-…`) with concurrency test | db-change-safety |
 | 1.12 | Security headers + CSP, Sentry, `/api/health/enquiry`, fake seed (`prisma/seed.ts`) | secure-customer-data |
-| 1.13 | GitHub Actions CI (typecheck, lint, migrate from empty DB, tests, build, e2e smoke, audit); Vercel staging deploy | phase-quality-gate |
+| 1.13 | GitHub Actions CI (typecheck, lint, migrate from empty DB, tests, build, e2e smoke, audit); Vercel Hobby preview/staging deploy | phase-quality-gate |
+| 1.14 | GitHub Actions scheduler (hourly/daily → `/api/cron/*`) and nightly encrypted backup workflow; first restore drill on `sundaram-dev` | db-change-safety |
 
 **Gate:** CI green; a Super Admin can sign in with 2FA on staging; a Sales user gets 403 on an admin-only action; tokens render correctly at 360/768/1280/1536 px; Phase 1 report delivered.
 
@@ -65,9 +67,9 @@ Goal: the public site is live and enquiries reach staff.
 | 2.6 | Lead service: create, duplicate-window merge, reference numbering, initial status, activity log, notifications (in-app + email via outbox) | secure-customer-data |
 | 2.7 | Leads CRM: list (search, filters, sort, pagination), detail, assign, status changes, follow-ups, activity timeline, lost reasons, "Chat on WhatsApp" | — |
 | 2.8 | SEO: `generateMetadata` from CMS, canonical + hreflang, sitemap, robots, EventVenue/LocalBusiness JSON-LD with supplied fields only | luxury-venue-content |
-| 2.9 | Consent banner, Vercel Web Analytics, conversion events (no PII) | secure-customer-data |
-| 2.10 | Performance pass (LCP < 2.5 s on mid-range mobile, image sizing, lazy loading), accessibility pass | sundaram-design-system |
-| 2.11 | Staging → production deploy, domain, Resend DNS, uptime alerts | — |
+| 2.9 | Consent banner, conversion events in our own table (no PII); page-view analytics within free limits | secure-customer-data |
+| 2.10 | Performance pass (LCP < 2.5 s on mid-range mobile, static generation of public pages so visits don't wake the free database, image sizing, lazy loading), accessibility pass | sundaram-design-system |
+| 2.11 | Staging → production deploy, domain records in Hostinger DNS, Resend SPF/DKIM/DMARC, uptime alerts, free-tier usage check | — |
 
 **Gate:** website live on the business domain; a phone enquiry on 4G creates a lead with UTM data and notifies staff; Google Business Profile links to the site; Phase 2 report.
 
@@ -75,7 +77,7 @@ Goal: the public site is live and enquiries reach staff.
 
 ## 4. Phase 3 — Bookings and money
 
-Customers (profile, duplicates, merge review, consent) → halls/slots/buffers/composite halls → bookings with sub-events → `SlotReservation`/`SlotOccupancy` with exclusion constraint → holds, waitlist, expiry job → calendar → menus, packages, per-plate pricing, minimum plates, guest-count lock, pricing rules → quotation versions (immutable, diff, accept) → ledger, instalments, deposits, cancellation slabs, refunds → GST invoices, credit notes, FY numbering → private documents + bride/groom details → PDF service + templates (quotation, confirmation, receipt, statement, invoice, credit note, deposit settlement, function sheet, kitchen sheet) with field picker and presets.
+Decide the free private-document store and PDF renderer (ADR-07/08) → customers (profile, duplicates, merge review, consent) → halls/slots/buffers/composite halls → bookings with sub-events → `SlotReservation`/`SlotOccupancy` with exclusion constraint → holds, waitlist, expiry job → calendar → menus, packages, per-plate pricing, minimum plates, guest-count lock, pricing rules → quotation versions (immutable, diff, accept) → ledger, instalments, deposits, cancellation slabs, refunds → GST invoices, credit notes, FY numbering → private documents + bride/groom details → PDF service + templates (quotation, confirmation, receipt, statement, invoice, credit note, deposit settlement, function sheet, kitchen sheet) with field picker and presets.
 
 **Gate:** a realistic test booking (5-day wedding, 6 sub-events, ~40 lines) can be quoted, revised, accepted, confirmed, paid in instalments, invoiced, partly credited, cancelled with the correct refund, and printed — end to end on staging. Existing confirmed future bookings are entered before real use.
 
@@ -87,7 +89,7 @@ Tasks + templates (event checklist on confirmation), vendors and assignments, ex
 
 ## 6. Phase 5 — Growth and engagement
 
-Blog workflow (draft/preview/publish/schedule), Hindi translations (reviewed by a fluent speaker), e-brochure with optional lead gate, 360° tours, real-wedding stories with consent, offer/landing pages with campaign tagging, public date check, site-visit booking, WhatsApp provider + templates (quotation sent, payment due, reminders, feedback/review request, opt-in greetings), Instagram strip if approved.
+Blog workflow (draft/preview/publish/schedule), Hindi translations (reviewed by a fluent speaker), e-brochure with optional lead gate, 360° tours, real-wedding stories with consent, offer/landing pages with campaign tagging, public date check, site-visit booking, WhatsApp via free `wa.me` links (API templates for quotation sent, payment due, reminders, feedback/review request and greetings only if the business decides to pay Meta's per-message charges), Instagram strip if approved.
 
 **Gate:** date check proven to reveal nothing personal; WhatsApp messages respect consent and are logged; Hindi pages have correct hreflang.
 
@@ -122,5 +124,8 @@ Numbers refer to MASTER_PROMPT §25.
 | Business content arrives late and blocks Phase 2 | Placeholders that look intentional; launch with fewer pages if needed, never with invented facts |
 | Double bookings during the switch from paper/Excel | Enter all confirmed future bookings before Phase 3 goes live |
 | GST treatment wrong (e.g. composition scheme) | Accountant signs off Settings before the first real invoice |
-| Hero video eats the Cloudinary free tier | Usage alerts; fallback hosting for the video file |
+| Hero video eats the Cloudinary free tier | Hero film served from Vercel static files; Cloudinary for images only |
+| Vercel restricts the Hobby project for commercial use | No Vercel-only features; the app can move to Vercel Pro or another host without code changes |
+| Neon Free compute runs out mid-month (database suspended) | Static public pages, separate dev project, monthly usage check, enquiry fallback to phone/WhatsApp |
+| Only 6-hour restore window on Neon Free | Nightly encrypted backups + monthly off-GitHub copy + quarterly restore drill |
 | Scope creep from a long requirements list | Phase gates; anything new goes into the next phase's list |

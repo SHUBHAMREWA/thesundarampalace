@@ -3,6 +3,8 @@
 Status: **Phase 0 draft — awaiting approval.** Decisions marked *Proposed* need the owner's or developer's OK before Phase 1 starts.
 Last updated: 2026-10-23.
 
+**Owner decision (2026-10-23): run on free tiers only — Vercel Hobby, Neon Free, Cloudinary Free — and buy nothing now. The domain is already purchased at Hostinger.** The design below fits inside those free limits. Known risks of that choice are stated in ADR-02 and ADR-03, and `docs/costs.md` lists the signals that would make an upgrade worth discussing.
+
 ## 1. What we are building
 
 One Next.js application that serves three audiences from one codebase and one design system:
@@ -21,22 +23,20 @@ Scope is venues and banquet halls only. There is no room-booking model, route, o
 flowchart LR
   visitor[Visitor browser] -->|HTTPS| app
   staff[Staff browser / PWA] -->|HTTPS| app
-  subgraph Vercel [Vercel - Pro plan, region bom1 Mumbai]
+  dns[Hostinger DNS<br/>domain] -.-> app
+  subgraph Vercel [Vercel Hobby - free, region bom1 Mumbai]
     app[Next.js app<br/>website + CRM + CMS<br/>Server Actions / Route Handlers]
-    cron[Vercel Cron]
   end
-  cron -->|signed call| app
-  app -->|Prisma, TLS| db[(Neon PostgreSQL<br/>prod + staging branches)]
-  app -->|signed upload / delivery| cld[Cloudinary<br/>public media]
-  app -->|S3 API, presigned URLs| r2[(Cloudflare R2<br/>private documents)]
-  app -->|HMAC-signed HTML| pdf[PDF service<br/>Playwright Chromium<br/>Render container]
-  pdf -->|PDF bytes| app
-  app -->|API| mail[Resend<br/>email]
-  app -->|API, Phase 5| wa[WhatsApp Business API<br/>provider TBD]
-  app --> sentry[Sentry]
-  uptime[Uptime monitor] --> app
-  gha[GitHub Actions] -->|nightly pg_dump| r2b[(R2 backups bucket)]
-  gha --> db
+  gha[GitHub Actions<br/>scheduler + backups] -->|signed call, hourly/daily| app
+  app -->|Prisma, TLS| db[(Neon Free<br/>production project)]
+  gha -->|nightly pg_dump, encrypted| bk[(Backup artifacts<br/>private GitHub repo)]
+  app -->|signed upload / delivery| cld[Cloudinary Free<br/>public media]
+  app -->|server-only, Phase 3| priv[(Private document store<br/>decided in Phase 3)]
+  app -->|HMAC-signed HTML, Phase 3| pdf[PDF renderer<br/>Playwright Chromium<br/>free option decided in Phase 3]
+  app -->|API| mail[Resend Free<br/>email]
+  app -.->|wa.me links only| wa[WhatsApp]
+  app --> sentry[Sentry Free]
+  uptime[UptimeRobot Free] --> app
 ```
 
 ## 3. Stack and versions
@@ -53,14 +53,14 @@ Versions are the current stable releases checked on npm on 2026-10-23. Exact ver
 | Components | shadcn/ui + Radix, Lucide icons | latest CLI | Copied into `src/components/ui`, themed by tokens. |
 | Forms | React Hook Form + Zod | 7.x / 4.x | Zod schemas shared in `src/lib/validation/`. |
 | ORM / DB | Prisma + `@prisma/adapter-pg`, PostgreSQL 17 | **7.10.x** | npm's `latest` tag for the `prisma` CLI currently points at an 8.0 release candidate; we pin the stable 7.10 line for both CLI and client. |
-| Auth | Better Auth | 1.7.x | *Proposed.* See ADR-05. |
+| Auth | Better Auth | 1.7.x | *Proposed.* See ADR-05. Free, self-hosted. |
 | i18n | next-intl | 4.x | |
 | Money | decimal.js (via `Prisma.Decimal`) | 10.x | |
 | Dates | `date-fns` + `@date-fns/tz` | latest | All display in `Asia/Kolkata`. |
 | Rich text | Tiptap (ProseMirror JSON) | latest | See ADR-13. |
 | Media | Cloudinary Node SDK + `next-cloudinary` | 2.x | |
-| Private storage | `@aws-sdk/client-s3` against Cloudflare R2 | 3.x | |
-| PDF | Playwright Chromium (separate service) | 1.64.x | |
+| Private storage | `src/lib/storage/private.ts` abstraction | — | Backend chosen in Phase 3 (ADR-07). |
+| PDF | Playwright Chromium | 1.64.x | Where it runs is chosen in Phase 3 (ADR-08). |
 | Email | Resend SDK + React Email | latest | |
 | Errors | Sentry (`@sentry/nextjs`) | 11.x | |
 | Tests | Vitest, Playwright Test | 5.x / 1.64.x | |
@@ -73,23 +73,29 @@ Not installed on this machine: Docker, PostgreSQL client tools. See §7 for how 
 Each record states the decision, why, what was rejected, and what would make us revisit it.
 
 ### ADR-01 Modular monolith on Next.js — *Accepted (from requirements)*
-One app, one database, one design system. Business logic lives in `src/server/services/`, data access in `src/server/repositories/`, authorization in `src/server/policies/`. The only separate deployable is the PDF renderer (ADR-08).
+One app, one database, one design system. Business logic lives in `src/server/services/`, data access in `src/server/repositories/`, authorization in `src/server/policies/`. The only possible separate deployable is the PDF renderer (ADR-08).
 Revisit if: a module needs independent scaling or a different runtime.
 
-### ADR-02 Hosting: Vercel Pro, Mumbai region — *Proposed*
-- Vercel's fair-use guidelines state that all commercial use requires Pro or Enterprise; the free Hobby plan is not an option for a business site, including one built by a paid contractor.
-- Pro gives preview deployments per branch, cron jobs, cookieless Web Analytics, instant rollback, and a function region in Mumbai (`bom1`) close to users and to the database.
-- Rejected: running everything in one container on Render (one bill, Chromium in-process). It is cheaper only at the smallest size, and a 512 MB instance cannot comfortably run Next.js and Chromium together; a 2 GB instance costs about the same as Vercel Pro + a small PDF service, with worse global edge caching for the public site.
-- Rejected: self-managed VPS. Lowest cost, but patching, TLS, backups and uptime become the developer's ongoing job.
-Revisit if: monthly cost must drop below ~$20, or Vercel terms change.
+### ADR-02 Hosting: Vercel Hobby (free), Mumbai region — *Accepted (owner decision)*
+- Free. Custom domain from Hostinger, automatic SSL, preview deployments protected by Vercel Authentication.
+- Limits that shape the design (checked 2026-10-23; verify on Vercel's limits page): about 100 GB/month data transfer and 100 GB-hours of function execution; **cron jobs run at most once a day** and only somewhere within the scheduled hour; Hobby is a personal account, so there are no team seats (the client can't be added as a member).
+- Design consequences:
+  - Public pages are statically generated and revalidated on CMS publish, so ordinary visits cost almost no function time and don't wake the database.
+  - Time-sensitive work doesn't depend on Vercel Cron: notifications are sent right after the action with Next.js `after()`, holds expire lazily on read, and hourly/daily jobs are triggered by GitHub Actions (ADR-11).
+  - Web Analytics custom events are not available on Hobby, so conversions go into our own table (ADR-18).
+- **Known risk:** Vercel's fair-use guidelines say Hobby is for personal, non-commercial use and that all commercial use, including paid work for a client, needs Pro. Vercel could restrict or pause the project. Mitigation: the app is standard Next.js with no Vercel-only features, so it can move to Vercel Pro or another host without code changes. Third-party comparisons report that Netlify's free plan allows commercial use, but this is not yet verified against Netlify's terms or tested with this app.
+- Rejected for now: Vercel Pro (owner: buy nothing now); a single container on Render (free tier sleeps after 15 minutes, which is unacceptable for the public site).
 
-### ADR-03 Database: Neon PostgreSQL — *Proposed*
-- Branches give isolated databases for local development, CI, preview deployments and staging at no extra cost on the free tier.
-- Production runs on a paid plan (usage-based "Launch"): no hard monthly compute-hour cap that would suspend the database, and a longer point-in-time-restore window than the free plan's 6 hours.
-- Independent nightly `pg_dump` to a private R2 bucket (ADR-11), so recovery never depends on one vendor. Restore is tested before launch and quarterly.
-- Region: the closest Neon region to Mumbai available at setup (check for an India region first; otherwise Singapore).
-- Rejected: Supabase free tier pauses inactive projects after 7 days and has no daily backups; Render free Postgres expires. Neither is acceptable for customer and payment records.
-Revisit if: Neon pricing or regions change materially.
+### ADR-03 Database: Neon Free — *Accepted (owner decision)*
+- **Two Neon projects:** `sundaram-prod` (production `main` branch + `staging` branch) and `sundaram-dev` (developer and test branches). Compute hours are counted per project, so development and test runs never use up production's allowance.
+- Free-plan limits that matter (checked 2026-10-23; sources partly disagree): 100 compute-hours per project per month, scale-to-zero after 5 minutes idle, ~0.5–1 GB storage, **6-hour restore window**. Hitting a monthly limit **suspends compute until the next cycle**.
+- Design consequences:
+  - Static public pages (ADR-02) keep the database asleep for normal visitors; it wakes for enquiries and staff work.
+  - Nightly encrypted `pg_dump` (ADR-11) because the free restore window is only 6 hours.
+  - If the database is unreachable, the enquiry form shows the phone and WhatsApp number instead of failing silently, and Sentry alerts.
+  - Usage is checked monthly; at ~70% of compute hours or storage we discuss an upgrade (see `docs/costs.md`).
+- Region: the closest Neon region to Mumbai available at setup (check for India first; otherwise Singapore).
+- Rejected: Supabase free (pauses after 7 days of inactivity, no daily backups); Render free Postgres (expires).
 
 ### ADR-04 Prisma 7 with raw SQL where Prisma can't express it — *Accepted*
 - Prisma schema is the source of truth; migrations are generated with `prisma migrate dev` and reviewed.
@@ -97,31 +103,40 @@ Revisit if: Neon pricing or regions change materially.
 - Money is `Decimal(12,2)`, rates `Decimal(5,2)`, timestamps `Timestamptz(3)`.
 
 ### ADR-05 Authentication: Better Auth — *Proposed*
-- Self-hosted in our own PostgreSQL (users, sessions, accounts, verification), so no customer or staff data leaves our database.
+- Free, self-hosted in our own PostgreSQL (users, sessions, accounts, verification), so no customer or staff data leaves our database.
 - Has a first-party TOTP two-factor plugin with backup codes, which we enforce for Super Admin, Admin and Accounts.
 - Database sessions with `HttpOnly`, `Secure`, `SameSite=Lax` cookies; sessions can be revoked instantly.
 - Staff sign in with email + password (+ TOTP). No social login. There are no customer accounts.
 - Authorization (roles → permissions) is our own tables and `assertPermission()`; we don't rely on the auth library's role plugin, because the permission matrix is a business artefact we must test directly.
-- Rejected: Auth.js v5 (still a beta release line, no built-in TOTP); hosted identity providers (cost, data residency, another vendor holding staff identities).
+- Rejected: Auth.js v5 (still a beta release line, no built-in TOTP); hosted identity providers (cost, another vendor holding staff identities).
 
-### ADR-06 Public media: Cloudinary — *Accepted (from requirements)*
+### ADR-06 Public media: Cloudinary Free — *Accepted (owner decision)*
 - Signed server-side uploads only; credentials never reach the browser.
 - Delivery via `next/image` with a Cloudinary loader: AVIF/WebP, responsive widths.
 - Asset metadata (alt text EN/HI, caption, photographer credit, usage permission, category) lives in our `MediaAsset` table, not in Cloudinary.
-- **Risk:** the free plan's 25 monthly credits are shared by storage, transformations and bandwidth, and video bandwidth burns them fastest. A 3 MB hero film viewed 10,000 times is ~30 GB. Mitigation: track usage from the first week. If credits run short, serve the encoded hero MP4/WebM from Vercel or a public R2 bucket and keep Cloudinary for images. See `docs/costs.md`.
+- **Risk:** the free plan's 25 monthly credits are shared by storage, transformations and bandwidth (1 credit ≈ 1 GB). Video bandwidth burns them fastest: a 3 MB hero film viewed 10,000 times is ~30 GB, more than the whole allowance. Decision: **the compressed hero film is served from the app's own static files on Vercel** (`public/media/`), and Cloudinary handles images. The film is replaced by a deploy, not via the CMS; the poster image stays CMS-managed.
 
-### ADR-07 Private documents: Cloudflare R2 — *Proposed*
-- Separate private bucket (no public access, no custom domain) behind `src/lib/storage/private.ts` with `put`, `getSignedDownloadUrl(key, ttlSeconds)`, `delete`. Any S3-compatible provider can replace it.
-- Downloads go through a server route that checks the permission, writes an audit entry, then redirects to a presigned URL valid for 5 minutes. Object keys are random UUIDs, not names.
-- Rejected: Cloudinary authenticated assets. It would put identity documents in the same account as public marketing media, where one wrong upload preset or delivery type makes them public. R2 also has no egress fees.
+### ADR-07 Private documents — *Deferred to Phase 3*
+Needed only from Phase 3 (customer and bride/groom documents, generated PDFs). Everything goes through `src/lib/storage/private.ts` (`put`, `streamForDownload`, `delete`) so the backend can change without touching the CRM. Free options:
 
-### ADR-08 PDF rendering: separate Playwright service on Render — *Proposed (required decision in Phase 0/1)*
-- The main app renders the document to HTML with the same React template used for the on-screen preview, so preview and PDF can't drift.
-- It POSTs that HTML to `pdf-service/` (a small Node + Playwright container in this repo, deployed on Render's Starter instance) with an HMAC-SHA256 signature over body + timestamp. The service rejects unsigned, stale (> 60 s) or oversized requests, has no database access, and never fetches external URLs (fonts and logo are baked into the image).
-- The app stores the PDF in R2 and a `GeneratedDocument` row with a hash.
-- Why not on Vercel: packaging Chromium into serverless functions works, but it is fragile, cold starts are slow, and font handling (Devanagari) is the hardest part to get right. A container with fonts installed is predictable.
-- Rejected: hosted PDF APIs (cost per document, customer data sent to a third party).
-- Only needed from Phase 3; the cost starts then.
+| Option | Cost | Notes |
+|---|---|---|
+| **A. Cloudinary `authenticated` assets, downloaded only through our server** (recommended under the free-only rule) | $0, no card | Uses the existing account. Files are uploaded server-side with `type: authenticated` into a separate folder, and are never delivered by a Cloudinary URL to the browser: our download route checks permission, writes the audit log and streams the file. Shares the 25 credits (documents are small). Risk: a misconfigured upload could make a file public, so private uploads go through one tested function and a test asserts the public URL returns 401/404. |
+| B. Cloudflare R2 private bucket | $0 within 10 GB, **but a card must be on file** to enable R2 | Cleanest separation; S3-compatible. |
+
+Decision recorded at the start of Phase 3.
+
+### ADR-08 PDF rendering — *Deferred to Phase 3*
+- In every option, the main app renders the document to HTML with the same React template used for the on-screen preview, so preview and PDF can't drift.
+- Free options:
+
+| Option | Cost | Trade-off |
+|---|---|---|
+| **A. Small Playwright container (`pdf-service/`) on Render's free web service** (recommended) | $0 | Sleeps after 15 min idle; first PDF after a pause takes ~1 minute. Mitigated by waking it in the background as soon as a user opens the PDF dialog. Requests are HMAC-signed; the service has no DB access and blocks all outbound network calls; fonts (incl. Devanagari) are baked into the image. |
+| B. Chromium inside a Vercel function (`@sparticuz/chromium`) | $0 | No extra service, but large bundles, slow cold starts and fragile font handling on serverless. Will be tried in a short spike if A is not acceptable. |
+| C. Browser print ("Save as PDF") from the preview page | $0 | Always available as the "Print" button. No server-stored copy, so not enough on its own for invoices. |
+
+- Generated PDFs are stored in the private store (ADR-07) with a `GeneratedDocument` row and hash.
 
 ### ADR-09 Internationalisation: next-intl, localized JSON fields — *Proposed*
 - Public routes are `/{locale}/…` with `en` (default) and `hi`. CRM is English only.
@@ -130,23 +145,23 @@ Revisit if: Neon pricing or regions change materially.
 - `hreflang` alternates and canonical URLs are generated from the same route map as the sitemap.
 
 ### ADR-10 Notifications: outbox + provider adapters — *Accepted*
-- `NotificationService.send({ channel, template, to, data, purpose })` checks consent, writes an `Outbox` row and an in-app `Notification` in the same transaction as the business change, then a worker delivers it.
-- Adapters: in-app (always), email (Resend), WhatsApp (provider chosen in Phase 5: Meta Cloud API directly, or an Indian BSP), SMS (only if needed, DLT registration required).
+- `NotificationService.send({ channel, template, to, data, purpose })` checks consent and writes an `Outbox` row and an in-app `Notification` in the same transaction as the business change. Delivery is attempted immediately after the response (`after()`); failures are retried by the scheduled job.
+- Adapters: in-app (always), email (Resend Free: 100/day, 3,000/month), WhatsApp, SMS.
+- **WhatsApp in free mode:** "Chat on WhatsApp" buttons are plain `wa.me` links (free, no API). Automated WhatsApp messages (reminders, greetings) are charged per message by Meta, so the adapter stays switched off until the business decides to pay; those notifications go by email and in-app instead.
 - With no provider configured, the status is `NOT_SENT_NO_PROVIDER` and the CRM says so. We never claim a message was sent.
-- "Chat on WhatsApp" buttons in the CRM are plain `wa.me` links and need no provider.
 
-### ADR-11 Scheduled work — *Proposed*
-- Vercel Cron calls `/api/cron/*` route handlers authenticated with a secret header:
-  - every 15 min: deliver outbox, retry failures with backoff;
-  - hourly: release expired holds, promote waitlist, send hold-expiry and payment-due reminders;
-  - daily: follow-up digests, retention review flags, invoice-sequence sanity check.
-- Hold expiry is also applied lazily on read, so availability is correct even if a cron run is missed.
-- Backups: GitHub Actions nightly `pg_dump` (custom format, encrypted) to the R2 backups bucket. Retention: 30 dailies + 12 monthlies.
+### ADR-11 Scheduled work and backups — *Accepted*
+- Vercel Hobby cron runs only once a day, so **GitHub Actions scheduled workflows** call `/api/cron/*` route handlers authenticated with a secret header:
+  - hourly: release expired holds, promote waitlist, retry failed outbox messages, hold-expiry reminders;
+  - daily (06:00 IST): follow-up digest, payment-due reminders, retention flags, invoice-sequence check, prune rate-limit buckets.
+- GitHub's scheduler can run late by several minutes, so nothing depends on exact timing: hold expiry is also applied lazily on every read, and notifications are sent immediately when the action happens.
+- **Backups:** a nightly GitHub Actions job runs `pg_dump` (PostgreSQL 17 client), encrypts the dump with `age` (public key in the repo; private key held offline by the owner and developer), and stores it as a workflow artifact in the private repo with 30-day retention. On the 1st of each month the owner downloads that day's encrypted dump to the business's own storage (e.g. Google Drive). Restore is tested before launch and quarterly.
+- Free-tier budget: an hourly job uses ~720 of GitHub Free's 2,000 private-repo Actions minutes per month, leaving room for CI (verify the current allowance). If minutes run short, the scheduler drops to every 2 hours.
 
 ### ADR-12 Rate limiting in PostgreSQL — *Proposed*
-- Fixed-window counters in a small `RateLimitBucket` table keyed by `(endpoint, hashed IP or phone, window)`, cleaned up daily. No extra service needed at this traffic level.
+- Fixed-window counters in a small `RateLimitBucket` table keyed by `(endpoint, hashed IP or phone, window)`, cleaned up daily. No extra service.
 - Applies to enquiry, date check, site visit, brochure, login and 2FA endpoints.
-- Revisit if: sustained traffic makes this table hot; move to Upstash Redis.
+- Revisit if: sustained traffic makes this table hot; move to Upstash Redis (free tier).
 
 ### ADR-13 Rich text as structured JSON — *Proposed*
 - CMS and blog bodies are edited with Tiptap and stored as ProseMirror JSON.
@@ -167,13 +182,14 @@ Revisit if: Neon pricing or regions change materially.
 - Financial year labels (`2026-27`) are computed from the Asia/Kolkata date, not UTC.
 
 ### ADR-17 Observability — *Proposed*
-- Sentry for server and client errors (PII scrubbing on; no request bodies).
-- Uptime monitor on `/` and `/api/health/enquiry` (checks DB connectivity without creating data). Alerts to the owner's email and phone.
+- Sentry Free for server and client errors (PII scrubbing on; no request bodies).
+- UptimeRobot Free on `/` and `/api/health/enquiry` (checks DB connectivity without creating data). Alerts to the owner's email.
 - If the enquiry endpoint throws, Sentry alerts immediately and the visitor sees a fallback with the phone and WhatsApp number, so no enquiry is silently lost.
 
 ### ADR-18 Analytics — *Proposed*
-- Vercel Web Analytics (cookieless) for page views, plus our own `ConversionEvent` table for enquiry submitted, WhatsApp click, call click, brochure download, site visit booked, date check used. Neither stores names or phone numbers.
-- GA4 / Meta / Google Ads tags only if the business asks, and only after consent.
+- Our own `ConversionEvent` table for enquiry submitted, WhatsApp click, call click, brochure download, site visit booked, date check used — no names or phone numbers.
+- Page views: Vercel Web Analytics within the Hobby allowance (cookieless), or Google Analytics 4 (free) loaded only after consent if the business wants richer reports.
+- Meta / Google Ads tags only if the business asks, and only after consent.
 
 ## 5. Code layout
 
@@ -196,7 +212,8 @@ src/
     repositories/            Prisma access
     policies/                permission checks and data shaping
 prisma/                      schema.prisma, migrations/, seed.ts
-pdf-service/                 Dockerfile + tiny HTTP server (Phase 3)
+pdf-service/                 Dockerfile + tiny HTTP server (Phase 3, if ADR-08 option A)
+.github/workflows/           ci.yml, scheduler.yml, backup.yml
 tests/                       unit/, integration/, e2e/
 docs/
 ```
@@ -214,25 +231,25 @@ Server Action / Route Handler
 
 ## 6. Environments
 
-| Env | App | Database | Storage | Email / WhatsApp |
+| Env | App | Database | Media / documents | Email |
 |---|---|---|---|---|
-| Local | `npm run dev` | Neon branch `dev-<name>` | R2 `dev` bucket, Cloudinary `dev/` folder | Logged only |
-| CI | GitHub Actions | PostgreSQL service container | Mocked | Mocked |
-| Preview | Vercel preview per branch | Neon branch per preview (optional) | dev bucket | Logged only |
-| Staging | `staging.<domain>` | Neon branch `staging` | R2 `staging` bucket | Real email to staff only |
-| Production | `<domain>` | Neon `main` | R2 `prod` buckets | Real |
+| Local | `npm run dev` | Neon project `sundaram-dev`, branch `dev` | Cloudinary `dev/` folder | Logged only |
+| Test / CI | Vitest + Playwright; GitHub Actions | CI: PostgreSQL service container. Local: Neon `sundaram-dev`, branch `test` (reset per run) | Mocked | Mocked |
+| Preview | Vercel preview per branch (Vercel Authentication on) | Neon `sundaram-dev` | Cloudinary `dev/` | Logged only |
+| Staging | `staging.<domain>` (Vercel branch domain, protected, `noindex`) | Neon `sundaram-prod`, branch `staging` | Cloudinary `staging/` | Real email to staff only |
+| Production | `<domain>` | Neon `sundaram-prod`, branch `main` | Cloudinary `prod/` | Real |
 
 ## 7. Local development on this machine
 
 Docker and PostgreSQL are not installed. Two options; Phase 1 uses the first unless the developer prefers the second:
-1. **Neon dev branch** (no install): `DATABASE_URL` points at a personal branch. Integration tests use a separate `test` branch that is reset before each run.
-2. **Native PostgreSQL 17 for Windows**: fastest tests, works offline. The `btree_gist` extension ships with the standard installer.
+1. **Neon dev project** (no install, free): `DATABASE_URL` points at the `dev` branch of `sundaram-dev`. Integration tests use the `test` branch, reset before each run.
+2. **Native PostgreSQL 17 for Windows** (free): fastest tests, works offline. The `btree_gist` extension ships with the standard installer.
 
 CI always uses a throwaway PostgreSQL container, so migrations are proven from scratch on every push.
 
 ## 8. Open questions
 
-1. Accept Vercel Pro + Render PDF service (ADR-02, ADR-08), or optimise for lowest cost?
-2. Accept Better Auth (ADR-05)?
-3. Which accounts are opened in the business's name? (`docs/missing-business-info.md` §0)
-4. Keep this kit folder as the repository root, or move it to a folder named `sundaram-palace`? (Work so far assumes this folder.)
+1. Accept Better Auth (ADR-05)?
+2. Whose name are the free accounts opened in? (Vercel Hobby is a personal account; see `docs/missing-business-info.md` §0.)
+3. Keep this kit folder as the repository root? (Work so far assumes yes.)
+4. Phase 3: private document store (ADR-07) and PDF renderer (ADR-08) — free options listed; decide when Phase 3 starts.

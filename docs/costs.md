@@ -1,67 +1,65 @@
 # Costs and service limits
 
-Status: **Phase 0 estimate.** Prices and limits change; every row must be re-checked on the provider's own pricing page before the account is created and again before launch.
-Checked: 2026-10-23. Where only third-party sources were available, the row says so.
+Status: **Free-tier plan (owner decision, 2026-10-23).** Nothing is bought now. The domain is already purchased at Hostinger.
+Checked: 2026-10-23. Limits change; re-check each provider's pricing page when the account is created and again before launch. Where only third-party sources were available, the row says so.
 
-Nothing here promises that production will stay free. Commercial hosting has a monthly cost.
+Free tiers have hard limits. This document lists them, how the app stays inside them, and what to watch so nothing breaks by surprise.
 
 ## 1. Summary
 
-| When | Services that start costing money | Rough monthly cost (USD) |
-|---|---|---|
-| Phases 0–1 (build) | None — free tiers and Neon branches | $0 |
-| Phase 2 launch (website + leads) | Vercel Pro; Neon production plan | ~$20 + Neon usage (likely low single digits to ~$15 at this size; measure on staging) |
-| Phase 3 (bookings, PDFs) | + Render Starter for the PDF service | + $7 |
-| Phase 5 (WhatsApp) | + WhatsApp per-message charges (+ provider fee if a BSP is used) | Usage-based |
-| Yearly | Domain name; business email if not already paid | Varies by registrar/provider |
-
-Expected steady state after Phase 3: **about $30–45/month** plus WhatsApp usage and the domain. Treat this as an estimate, not a quote.
+| When | What it costs |
+|---|---|
+| Phases 0–2 (build + website launch) | **$0/month.** Domain renewal at Hostinger once a year (already bought). |
+| Phase 3 (bookings, PDFs, documents) | **$0/month** with the free options in `architecture.md` ADR-07/08. R2 (if chosen) needs a card on file but costs $0 inside 10 GB. |
+| Phase 5 (WhatsApp) | **$0** with `wa.me` click-to-chat links. Automated WhatsApp messages are charged per message by Meta and stay off unless the business decides to pay. |
 
 ## 2. Per service
 
-| Service | Purpose | Dev / staging plan | Production plan | Known limits (as checked) | What happens at the limit | Source quality |
+| Service | Purpose | Plan | Free limits (as checked) | What happens at the limit | How we stay inside | Source quality |
 |---|---|---|---|---|---|---|
-| **Vercel** | Next.js hosting, cron, analytics | Hobby is fine for the developer's own non-commercial experiments only | **Pro, $20/month per seat** | Hobby: personal, non-commercial use only. Vercel's guidelines say all commercial use needs Pro/Enterprise and count paid contractor work as commercial. | Hobby: account can be restricted for commercial use. Pro: usage beyond included amounts is billed. | Official docs |
-| **Neon** | PostgreSQL | Free plan (branches for dev/test/preview) | Usage-based paid plan ("Launch") | Free: 100 compute-hours/project/month, scale-to-zero after 5 min, ~0.5–1 GB storage per project (recently raised; sources disagree), 5 GB egress, 6-hour restore window. Launch: billed per compute-hour and GB-month; ~7-day point-in-time restore. | Free: compute is **suspended** until next cycle — unacceptable for production. | Mix of official FAQ and third-party trackers |
-| **Render** | PDF service container (Phase 3) | Free web service for experiments | **Starter, $7/month** (512 MB, 0.5 CPU, always on) | Free instances sleep after 15 min idle and take ~1 min to wake. | Free: slow first PDF. Starter: fixed price; upgrade if Chromium needs more memory. | Third-party (several agree) |
-| **Cloudinary** | Public images, hero video | Free plan | Free plan to start | 25 credits/month shared: 1 credit = 1 GB storage, or 1 GB bandwidth, or 1,000 transformations. | Uploads/delivery restricted until next cycle or upgrade. **Hero video bandwidth is the main risk** — see §3. | Official docs |
-| **Cloudflare R2** | Private documents, backups | Free tier | Free tier, then pay-as-you-go | 10 GB-month storage, 1M Class A (writes) and 10M Class B (reads) ops/month; no egress fees. | Billed beyond free tier (~$0.015/GB-month). | Third-party (consistent) |
-| **Resend** | Transactional email | Free | Free to start | 3,000 emails/month, **100/day**; free plan domain limit (1–3; sources disagree). | Sending pauses for the day/month. Pro $20/month removes the daily cap. | Official docs (limits) |
-| **WhatsApp Business Platform** | Templates: reminders, payment due, greetings | — | Per-message pricing by Meta (+ BSP fee if used) | India, 2026: marketing ≈ ₹0.78/message; utility and authentication lower (sources disagree: ~₹0.12–0.35). Replies inside the 24-hour customer-service window are free, as are utility templates sent inside it. Meta is moving India billing to INR by 31 Dec 2026. | Messages fail if the account has no balance/payment method. | Meta docs + third-party rate tables |
-| **Sentry** | Error tracking | Free (Developer) | Free to start | Monthly error quota on the free plan (verify current number). | Events dropped after quota. | To verify |
-| **Uptime monitor** (UptimeRobot / Better Stack) | Homepage + enquiry checks | Free | Free | Free plans allow a few dozen monitors at 3–5 min intervals (verify). | — | To verify |
-| **GitHub** | Repo, CI, nightly backup job | Free | Free (private repo) | Actions minutes per month on free private repos (verify). | Jobs queue/fail; backup job is small. | To verify |
-| **Domain** | `<domain>` | — | Yearly | — | Site goes down if it lapses — enable auto-renew. | — |
-| **Business email** | Sender mailbox for SPF/DKIM | — | Google Workspace / Zoho / existing | — | — | To verify |
+| **Vercel** | Next.js hosting | **Hobby (free)** | ~100 GB/month data transfer, ~100 GB-hours function execution; cron once per day; personal account, no team seats. **Personal, non-commercial use only** under Vercel's fair-use guidelines. | Usage beyond limits can pause deployments; for commercial use Vercel may restrict the project. | Static public pages; hero film ~3 MB; scheduler on GitHub Actions; no Vercel-only features so the app can move hosts. | Official docs (terms); limits partly from truncated official pages |
+| **Neon** | PostgreSQL | **Free** (2 projects: prod, dev) | 100 compute-hours per project per month, scale-to-zero after 5 min, ~0.5–1 GB storage per project, 5 GB egress, 6-hour restore window. | **Database compute is suspended until the next monthly cycle** — enquiries and CRM stop working. | Static public pages don't touch the DB; dev/test in a separate project; monthly usage check; enquiry fallback shows phone/WhatsApp. | Official FAQ + third-party trackers |
+| **Cloudinary** | Public images | **Free** | 25 credits/month shared: 1 credit ≈ 1 GB storage, or 1 GB bandwidth, or 1,000 transformations. | Uploads/delivery restricted until the next cycle. | Hero video served from Vercel instead; responsive AVIF/WebP; limited transformation presets. | Official docs |
+| **Resend** | Transactional email | **Free** | 3,000 emails/month, **100/day**. | Sending pauses for the day/month. | Staff alerts + digests only; no bulk marketing email. | Official docs |
+| **GitHub** | Repo, CI, scheduler, backups | **Free** (private repo) | Actions minutes and artifact storage quota for private repos (~2,000 min/month; verify). | Jobs stop until the next month. | Hourly scheduler ~720 min; CI kept lean; backups small. | To verify |
+| **Sentry** | Error tracking | **Free** | Monthly error quota (verify). | Extra events dropped. | PII scrubbing, sampling. | To verify |
+| **UptimeRobot** | Uptime alerts | **Free** | A few dozen monitors at 5-min intervals (verify). | — | 2 monitors. | To verify |
+| **Render** (Phase 3, option A) | PDF renderer | **Free web service** | Sleeps after 15 min idle (~1 min to wake); 750 instance-hours/month per workspace. | Slow first PDF after idle. | Wake it when the PDF dialog opens. | Third-party (several agree) |
+| **Cloudflare R2** (Phase 3, option B) | Private documents | Free tier | 10 GB storage, 1M writes, 10M reads/month, no egress fee. **Card required to enable.** | Billed beyond free tier. | Only if the owner accepts a card on file. | Third-party (consistent) |
+| **WhatsApp** | Customer chat | `wa.me` links (free) | — | — | No API messages unless the business decides to pay per message (India 2026: marketing ≈ ₹0.78/message; utility lower). | Meta docs + third-party rate tables |
+| **Hostinger** | Domain + DNS | Already purchased | — | Site and email stop if the domain lapses. | Turn on auto-renew. | — |
 
-## 3. Risks and how we watch them
+## 3. Monthly free-tier check (5 minutes, first working day of the month)
 
-| Risk | Early warning | Fallback |
+| Check | Where | Act when |
 |---|---|---|
-| Cloudinary credits exhausted by hero video | Weekly usage check in the first month after launch; alert at 70% | Serve the compressed hero MP4/WebM from Vercel static or a public R2 bucket; keep Cloudinary for images. |
-| Neon usage grows past expectations | Monthly bill review; Neon usage alerts | Tune scale-to-zero, add indexes, cache public pages (they're mostly static). |
-| Resend daily cap (100/day) hit by reminders | Outbox shows `FAILED` with rate-limit reason | Upgrade to Pro, or move bulk/greeting sends to WhatsApp. |
-| PDF service out of memory on long documents | Render metrics, Sentry errors from PDF calls | Next Render size up; reuse one browser instance per container. |
-| WhatsApp marketing spend | Monthly message count in the CRM's MessageLog report | Send greetings only to opted-in customers; prefer utility templates. |
+| Neon compute-hours and storage (prod project) | Neon console → Usage | > 70% of the monthly allowance |
+| Cloudinary credits | Cloudinary console → Usage | > 70% |
+| Vercel transfer and function usage | Vercel dashboard → Usage | > 70% |
+| Resend sends | Resend dashboard | Any day near 100 |
+| GitHub Actions minutes | GitHub → Settings → Billing | > 70% |
+| Backups present and one month's copy downloaded | GitHub Actions artifacts | Missing artifact |
 
-## 4. Before launch checklist
+## 4. Upgrade triggers (to discuss, not automatic)
 
-- [ ] Each account is in the business's name (or ownership transfer is agreed in writing).
-- [ ] Vercel plan is Pro; commercial-use terms re-read.
-- [ ] Neon production project is on a paid plan; restore window noted; nightly `pg_dump` running; one restore tested.
-- [ ] Cloudinary and R2 usage alerts set.
-- [ ] Resend domain verified with SPF, DKIM and DMARC.
-- [ ] WhatsApp provider chosen; template approval and per-message cost confirmed in INR.
-- [ ] Domain auto-renew on.
-- [ ] Monthly cost approved by the owner.
+Free tiers are fine for building and launching. These are the signals that a small paid plan would be worth discussing with the business; nothing is bought without the owner's approval.
+
+| Signal | Likely option |
+|---|---|
+| Vercel flags or restricts the project for commercial use | Vercel Pro (~$20/month) or move to a host whose free plan allows commercial use (verify terms first) |
+| Neon compute or storage above 70% two months in a row, or the business wants a longer restore window than 6 hours for financial records | Neon paid usage plan |
+| Cloudinary credits above 70% | Trim image sizes / presets first; then a paid tier |
+| More than 100 emails on some days | Resend Pro, or move greetings to another channel |
+| Staff find the PDF cold start too slow | Render Starter ($7/month) |
+| Business wants automated WhatsApp reminders | Meta per-message charges (+ provider fee if using a BSP) |
 
 ## Sources (retrieved 2026-10-23)
 
-- Vercel fair use guidelines: https://vercel.com/docs/limits/fair-use-guidelines
-- Neon pricing: https://neon.com/pricing · free-tier FAQ: https://neon.com/faqs/managed-postgres-databases-free-tier · PricingSaaS Neon tracker: https://pricingsaas.com/companies/neon
-- Render pricing (third-party summaries): https://temps.sh/blog/render-pricing-2026 · https://livemy.app/blog/render-pricing
+- Vercel fair use guidelines: https://vercel.com/docs/limits/fair-use-guidelines · limits: https://vercel.com/docs/limits
+- Neon pricing: https://neon.com/pricing · free-tier FAQ: https://neon.com/faqs/managed-postgres-databases-free-tier
 - Cloudinary billing and plans: https://cloudinary.com/documentation/billing_and_plans
-- Cloudflare R2 pricing (third-party): https://filebase.com/blog/cloudflare-r2-pricing-costs-savings-and-alternatives-in-2026/
 - Resend sending limits: https://resend.com/docs/knowledge-base/resend-sending-limits
-- Meta WhatsApp pricing: https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing · India rate summaries: https://baat.ai/blog/whatsapp-api-pricing-india · https://hyperleap.ai/whatsapp-pricing-calculator-india
-- Supabase free-plan pausing (reason it was not chosen): https://supabase.com/docs/guides/platform/free-project-pausing
+- Render free tier (third-party summaries): https://temps.sh/blog/render-pricing-2026 · https://livemy.app/blog/render-pricing
+- Cloudflare R2 free tier and card requirement (third-party): https://filebase.com/blog/cloudflare-r2-pricing-costs-savings-and-alternatives-in-2026/ · https://eastondev.com/blog/en/posts/dev/20251130-r2-picgo-setup/
+- Meta WhatsApp pricing: https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing · India rate summary: https://baat.ai/blog/whatsapp-api-pricing-india
+- Netlify free plan and commercial use (third-party, unverified): https://agentdeals.dev/vercel-vs-netlify

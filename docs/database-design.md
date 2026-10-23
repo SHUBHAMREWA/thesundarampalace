@@ -109,7 +109,7 @@ Duplicate enquiry rule: same normalized phone with an open lead created within t
 | Entity | Key fields | Notes |
 |---|---|---|
 | `Customer` | reference, fullName, mobile (E.164, indexed), whatsapp, email, gstin, companyName, maritalStatus, dateOfBirth, anniversary, spouseName, categoryId, professionId, professionOther, state, city, locality, address, photoAssetId, notes, deletedAt, anonymizedAt | Age is computed, never stored. DOB/anniversary collected only if greetings are used. |
-| `CustomerDocument` | ownerType (CUSTOMER/PARTY), ownerId, category (PAN, AADHAAR_MASKED, OTHER), storageKey, mimeType, sizeBytes, sha256, uploadedBy, purpose | File in private R2. No Aadhaar number columns at all. |
+| `CustomerDocument` | ownerType (CUSTOMER/PARTY), ownerId, category (PAN, AADHAAR_MASKED, OTHER), storageKey, mimeType, sizeBytes, sha256, uploadedBy, purpose | File in the private document store (ADR-07). No Aadhaar number columns at all. |
 | `CustomerMergeReview` | primaryId, duplicateId, status, decidedBy, decidedAt | Merge is a reviewed action, never automatic. |
 
 ### 3.5 Venue (Phase 2 public facts, Phase 3 booking rules)
@@ -228,7 +228,7 @@ Trigger on `LedgerEntry`, `DepositEntry`, `Invoice`, `InvoiceLine`, `CreditNote`
 |---|---|
 | Lead / Customer personal data | Soft delete; deletion requests anonymize personal fields (`anonymizedAt`) after checking legal retention. |
 | Bookings, ledgers, invoices, credit notes | Never deleted. Retained for the period the accountant confirms. |
-| Private documents | Object deleted from R2 when the retention period ends or on a valid deletion request; `CustomerDocument` row keeps metadata + `deletedAt`. |
+| Private documents | Object deleted from the private store when the retention period ends or on a valid deletion request; `CustomerDocument` row keeps metadata + `deletedAt`. |
 | Audit log | Retained per Settings (proposed 3 years), then archived. |
 | Rate-limit buckets, expired sessions | Hard-deleted by the daily job. |
 

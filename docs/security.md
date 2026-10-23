@@ -11,8 +11,8 @@ Last updated: 2026-10-23.
 | Internal | Lead pipeline, tasks, vendor list, reports | Staff by permission | PostgreSQL |
 | Personal | Names, phones, emails, addresses, DOB, anniversary, marital status, bride/groom contacts | Staff whose role needs it | PostgreSQL |
 | Financial | Quotations, ledger, invoices, deposits, expenses | Accounts, Managers, Admins | PostgreSQL (append-only) |
-| Restricted | Identity documents (PAN, masked Aadhaar), customer photos | `documents.sensitive.read` only, every access logged | Private R2 bucket |
-| Secrets | API keys, DB URLs, HMAC secrets, TOTP secrets | Nobody in the app UI | Vercel / Render env vars; TOTP secrets encrypted at rest |
+| Restricted | Identity documents (PAN, masked Aadhaar), customer photos | `documents.sensitive.read` only, every access logged | Private document store (backend chosen in Phase 3, `architecture.md` ADR-07) |
+| Secrets | API keys, DB URLs, HMAC secrets, TOTP secrets | Nobody in the app UI | Vercel / GitHub Actions secrets; TOTP secrets encrypted at rest |
 
 Main threats: public form spam and abuse; staff account takeover; a staff member seeing more than their role needs; leaking private documents through a guessable or permanent URL; tampering with financial history; injection via CMS content or PDF templates; date-check endpoint leaking who booked what.
 
@@ -62,8 +62,9 @@ Main threats: public form spam and abuse; staff account takeover; a staff member
 
 - Upload validation by magic bytes (not extension); allowlist JPEG, PNG, WebP, PDF (+ MP4/WebM for public video). Size limits from Settings (proposed: images 10 MB, PDFs 15 MB, video 50 MB before compression).
 - EXIF (including GPS) stripped from public images.
-- Public media → Cloudinary signed upload. Private documents → R2 private bucket via `src/lib/storage/private.ts`, keys are random UUIDs.
-- Download: `/api/documents/[id]/download` → session → permission → audit log → 302 to a presigned URL valid 5 minutes. URLs are never stored or rendered in HTML.
+- Public media → Cloudinary signed upload. Private documents → `src/lib/storage/private.ts` (Cloudinary `authenticated` assets or R2, decided in Phase 3); object keys are random UUIDs, never names.
+- Download: `/api/documents/[id]/download` → session → permission → audit log → the server streams the file (or, with R2, redirects to a presigned URL valid ≤ 5 minutes). Storage URLs are never stored or rendered in HTML.
+- A test asserts that a private document cannot be fetched by its storage URL without our server.
 - Identity documents: optional, only for a configured purpose; masked Aadhaar preferred; no Aadhaar number columns anywhere; excluded from PDFs by default; WhatsApp/email never attach them.
 
 ## 5. Web security
@@ -106,13 +107,14 @@ The design follows the Digital Personal Data Protection Act, 2023. The DPDP Rule
 
 ## 8. Backups and recovery
 
-- Neon point-in-time restore (production plan) + nightly encrypted `pg_dump` to a separate R2 bucket (30 daily, 12 monthly).
-- R2 private documents: the app never deletes an object directly; it moves it under a `trash/` prefix that a lifecycle rule purges after 30 days, so accidental deletes are recoverable.
+- Free-tier setup: Neon Free gives only a 6-hour restore window, so a nightly `pg_dump` is encrypted with `age` and kept as a private GitHub Actions artifact for 30 days; the owner downloads one encrypted copy per month to the business's own storage. Details in `docs/deployment.md` §7.
+- Backups contain personal data: they are always encrypted before leaving the runner, and the private key is never stored in GitHub.
+- Private documents: the app never hard-deletes an object directly; it marks it deleted and a scheduled job purges it after 30 days, so accidental deletes are recoverable.
 - Restore is tested before launch and quarterly; the result is written to `docs/deployment.md`.
 
 ## 9. Incident and breach response
 
-1. **Contain** — revoke sessions and rotate affected secrets (DB, R2, Cloudinary, Resend, HMAC), disable the affected feature.
+1. **Contain** — revoke sessions and rotate affected secrets (DB, Cloudinary, private storage, Resend, cron and PDF HMAC), disable the affected feature.
 2. **Assess** — what data, how many people, since when; preserve logs.
 3. **Notify** — under the DPDP framework, personal-data breaches must be reported to the Data Protection Board and the affected people; CERT-In directions may also require reporting certain cyber incidents within 6 hours. Counsel confirms which apply and the current timelines. Prepare the notice text in advance.
 4. **Recover** — restore from backup if data was altered; verify ledger integrity (append-only triggers make tampering visible).
@@ -123,6 +125,6 @@ Contact list (owner, developer, counsel, accountant) to be filled in before laun
 ## 10. Secrets
 
 - `.env` files are never committed; `.env.example` holds placeholders only.
-- Production secrets live only in Vercel / Render / GitHub Actions secret stores, scoped per environment.
-- R2 tokens are scoped per bucket (app token cannot read the backups bucket; backup token cannot read documents).
+- Production secrets live only in Vercel / GitHub Actions (and Render, if used) secret stores, scoped per environment.
+- Each credential has the narrowest scope the provider allows (e.g. the backup job's database role is read-only).
 - Rotate on staff departure of anyone with access, and at least yearly.

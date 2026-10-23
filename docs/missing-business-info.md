@@ -14,12 +14,12 @@ These affect setup, not just content. Ask first.
 
 | # | Item | Why it blocks | Needed by | Status |
 |---|---|---|---|---|
-| 0.1 | Who owns the hosting/service accounts (Vercel, Neon, Cloudinary, Cloudflare, Resend, Sentry, domain)? Recommended: accounts in the business's name, developer invited as member. | Billing, data ownership and handover. Hard to move later. | Phase 1 | Missing |
-| 0.2 | Domain name (already owned? registrar?) | Email sending (SPF/DKIM), canonical URLs, SEO, SSL. | Phase 2 | Missing |
-| 0.3 | Business mailbox provider (e.g. Google Workspace, Zoho) and the sender address for notifications | Transactional email must come from the business domain. | Phase 2 | Missing |
+| 0.1 | Who owns the free service accounts (Vercel Hobby, Neon, Cloudinary, Resend, Sentry, GitHub)? Recommended: opened with a business email. Vercel Hobby is a personal account with no team seats, so agree in writing who owns it. | Data ownership and handover. Hard to move later. | Phase 1 | Missing |
+| 0.2 | Domain | Email sending (SPF/DKIM), canonical URLs, SEO, SSL. | Phase 2 | **Received 2026-10-23:** purchased at Hostinger. Still needed: the exact domain name and access to Hostinger DNS settings. |
+| 0.3 | Does the Hostinger purchase include email or forwarding? Which address should receive replies (e.g. `info@<domain>`)? Sender address for notifications. | Transactional email must come from the business domain. | Phase 2 | Missing |
 | 0.4 | City, full address and map pin | Local SEO, contact page, structured data, GST place of supply. | Phase 2 | Missing |
 | 0.5 | Number and names of halls / lawns | Everything in the venue section and booking model depends on it. | Phase 2 | Missing |
-| 0.6 | Approval of monthly running cost (see `docs/costs.md`) — commercial hosting is not free | Vercel's free Hobby plan does not allow commercial use. | Phase 2 launch | Missing |
+| 0.6 | Running cost | Decides hosting plans. | Phase 2 launch | **Received 2026-10-23:** free tiers only (Vercel Hobby, Neon Free, Cloudinary Free); nothing to buy now. See `docs/costs.md` for limits and upgrade triggers. |
 
 ## 1. Brand and identity
 
