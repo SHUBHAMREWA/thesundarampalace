@@ -6,19 +6,50 @@ import { z } from "zod";
  * policy numbers marked "default" are editable placeholders, not facts.
  */
 
+const nullableText = z
+  .string()
+  .trim()
+  .max(2000)
+  .nullable()
+  .transform((v) => (v ? v : null));
+
+const nullableUrl = z
+  .union([z.url({ protocol: /^https$/ }), z.literal(""), z.null()])
+  .transform((v) => (v ? v : null));
+
+const localizedNullable = z
+  .object({ en: z.string().trim().max(4000), hi: z.string().trim().max(4000).optional() })
+  .nullable()
+  .transform((v) => (v && (v.en || v.hi) ? { en: v.en, ...(v.hi ? { hi: v.hi } : {}) } : null));
+
 export const businessSettingsSchema = z.object({
-  displayName: z.string().min(1),
-  legalName: z.string().nullable(),
-  gstin: z.string().nullable(),
-  stateCode: z.string().nullable(),
-  address: z.string().nullable(),
-  city: z.string().nullable(),
-  phone: z.string().nullable(),
-  whatsapp: z.string().nullable(),
-  email: z.email().nullable(),
-  officeHours: z.string().nullable(),
+  displayName: z.string().trim().min(1).max(120),
+  legalName: nullableText,
+  gstin: nullableText,
+  stateCode: nullableText,
+  address: nullableText,
+  city: nullableText,
+  /** E.164, validated by the settings form with the shared phone schema. */
+  phone: nullableText,
+  whatsapp: nullableText,
+  email: z
+    .union([z.email(), z.literal(""), z.null()])
+    .transform((v) => (v ? v : null)),
+  officeHours: nullableText,
   timeZone: z.literal("Asia/Kolkata"),
   currency: z.literal("INR"),
+});
+
+export const contactSettingsSchema = z.object({
+  /** Google Maps "Embed a map" URL (https://www.google.com/maps/embed?pb=…). */
+  mapEmbedUrl: nullableUrl,
+  mapLink: nullableUrl,
+  directions: localizedNullable,
+  whatsappMessage: localizedNullable,
+  googleReviewsUrl: nullableUrl,
+  instagramUrl: nullableUrl,
+  facebookUrl: nullableUrl,
+  youtubeUrl: nullableUrl,
 });
 
 export const numberingSettingsSchema = z.object({
@@ -30,7 +61,11 @@ export const enquirySettingsSchema = z.object({
   /** Same phone within this many days updates the open lead (default; confirm). */
   duplicateWindowDays: z.number().int().min(0).max(365),
   /** Shown on the enquiry success screen; null until the business supplies it. */
-  responseTimePromise: z.string().nullable(),
+  responseTimePromise: localizedNullable,
+  /** New leads are assigned to this staff member (null = unassigned). */
+  defaultAssigneeId: z.string().nullable(),
+  /** Bump when the consent wording changes; stored with every consent record. */
+  consentNoticeVersion: z.string().min(1).max(40),
 });
 
 export const bookingPolicySettingsSchema = z.object({
@@ -41,6 +76,7 @@ export const bookingPolicySettingsSchema = z.object({
 
 export const SETTINGS_SECTIONS = {
   business: businessSettingsSchema,
+  contact: contactSettingsSchema,
   numbering: numberingSettingsSchema,
   enquiry: enquirySettingsSchema,
   bookingPolicy: bookingPolicySettingsSchema,
@@ -64,13 +100,29 @@ export const DEFAULT_SETTINGS: { [K in SettingsSectionKey]: SettingsSection<K> }
     timeZone: "Asia/Kolkata",
     currency: "INR",
   },
+  contact: {
+    mapEmbedUrl: null,
+    mapLink: null,
+    directions: null,
+    whatsappMessage: null,
+    googleReviewsUrl: null,
+    instagramUrl: null,
+    facebookUrl: null,
+    youtubeUrl: null,
+  },
   numbering: { leadPrefix: "SP-L", bookingPrefix: "SP-B" },
-  enquiry: { duplicateWindowDays: 30, responseTimePromise: null },
+  enquiry: {
+    duplicateWindowDays: 30,
+    responseTimePromise: null,
+    defaultAssigneeId: null,
+    consentNoticeVersion: "2026-10-draft",
+  },
   bookingPolicy: { holdDurationHours: 72, holdReminderHoursBefore: 12 },
 };
 
 export const SETTINGS_LABELS: Record<SettingsSectionKey, string> = {
   business: "Business details",
+  contact: "Contact page and social links",
   numbering: "Reference numbering",
   enquiry: "Enquiries",
   bookingPolicy: "Booking policy",

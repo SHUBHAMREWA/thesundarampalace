@@ -25,7 +25,7 @@ export function publicCsp(): string {
     img-src 'self' blob: data: ${CLOUDINARY};
     media-src 'self' ${CLOUDINARY};
     font-src 'self';
-    connect-src 'self';
+    connect-src 'self'${isDev ? " ws:" : ""};
     frame-src ${GOOGLE_MAPS};
     object-src 'none';
     base-uri 'self';
@@ -42,7 +42,7 @@ export function adminCsp(nonce: string): string {
     style-src 'self' 'unsafe-inline';
     img-src 'self' blob: data: ${CLOUDINARY};
     font-src 'self';
-    connect-src 'self';
+    connect-src 'self' https://api.cloudinary.com${isDev ? " ws:" : ""};
     object-src 'none';
     base-uri 'self';
     form-action 'self';

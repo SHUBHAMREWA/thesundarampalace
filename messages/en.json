@@ -3,25 +3,186 @@
     "name": "The Sundaram Palace",
     "skipToContent": "Skip to content",
     "language": "Language",
-    "switchTo": "हिन्दी"
+    "switchTo": "हिन्दी",
+    "menu": "Menu",
+    "closeMenu": "Close menu"
   },
   "nav": {
+    "primary": "Main navigation",
     "home": "Home",
-    "primary": "Main navigation"
+    "about": "About",
+    "venues": "Venues",
+    "catering": "Catering",
+    "decor": "Décor",
+    "services": "Celebrations",
+    "packages": "Packages",
+    "gallery": "Gallery",
+    "contact": "Contact"
+  },
+  "cta": {
+    "planEvent": "Plan your event",
+    "whatsapp": "Chat on WhatsApp",
+    "call": "Call us",
+    "viewVenue": "View venue",
+    "allVenues": "See all venues",
+    "learnMore": "Learn more",
+    "viewGallery": "View the gallery",
+    "seeMenus": "See sample menus",
+    "seeThemes": "See décor themes",
+    "seePackages": "See packages",
+    "googleReviews": "Read our reviews on Google",
+    "directions": "Get directions",
+    "enquireAboutVenue": "Enquire about this venue"
+  },
+  "placeholder": {
+    "photo": "Photograph coming soon",
+    "content": "This page is being prepared. Please check back soon, or plan your event with us now.",
+    "list": "Details will be added here soon.",
+    "facts": "Details coming soon",
+    "contact": "Contact details will be published here soon."
   },
   "home": {
     "metaTitle": "The Sundaram Palace — Weddings and celebrations",
-    "metaDescription": "Wedding venue and banquet halls. Our new website is being prepared.",
+    "metaDescription": "Wedding venue and banquet halls for weddings, receptions and celebrations.",
     "eyebrow": "Weddings & celebrations",
-    "title": "The Sundaram Palace",
-    "comingSoon": "Our new website is being prepared. Venue details, photographs and enquiry options will appear here soon."
+    "reviewsIntro": "We only show genuine reviews. Read what guests say on our Google Business Profile.",
+    "datesIntro": "Dates in high demand this season. Enquire early to check availability."
+  },
+  "venues": {
+    "eyebrow": "Venue spaces",
+    "area": "Area",
+    "ceiling": "Ceiling height",
+    "sqft": "{value} sq ft",
+    "feet": "{value} ft",
+    "capacity": "Capacity",
+    "capacityRange": "{min}–{max} guests",
+    "capacityUpTo": "Up to {max} guests",
+    "facilities": "Facilities",
+    "floorPlan": "Floor plan",
+    "suitableFor": "Suitable for",
+    "slots": "Event timings",
+    "tour": "Virtual tour",
+    "watchTour": "Watch the walkthrough",
+    "photos": "Photographs"
+  },
+  "catalog": {
+    "layout": {
+      "THEATRE": "Theatre",
+      "BANQUET": "Round table / banquet",
+      "FLOATING": "Floating / standing",
+      "CLUSTER": "Cluster"
+    },
+    "facility": {
+      "ac": "Air conditioning",
+      "power_backup": "Power backup",
+      "stage": "Stage",
+      "bridal_room": "Bridal / green room",
+      "parking": "Parking",
+      "lift": "Lift",
+      "accessible": "Step-free access"
+    },
+    "menuCategory": {
+      "veg": "Vegetarian",
+      "jain": "Jain",
+      "non_veg": "Non-vegetarian",
+      "custom": "Speciality"
+    },
+    "course": {
+      "welcome_drinks": "Welcome drinks",
+      "starters": "Starters",
+      "main_course": "Main course",
+      "breads": "Breads",
+      "rice": "Rice",
+      "desserts": "Desserts",
+      "live_counters": "Live counters",
+      "other": "More"
+    }
+  },
+  "packages": {
+    "includes": "Includes",
+    "addOns": "Optional add-ons",
+    "terms": "Terms",
+    "priceOnRequest": "Price on request",
+    "startingFrom": "Starting from {price}"
+  },
+  "gallery": {
+    "all": "All",
+    "filter": "Filter photographs",
+    "credit": "Photo: {name}"
+  },
+  "contact": {
+    "address": "Address",
+    "phone": "Phone",
+    "whatsapp": "WhatsApp",
+    "email": "Email",
+    "hours": "Office hours",
+    "directions": "How to reach us",
+    "map": "Map showing The Sundaram Palace",
+    "follow": "Follow us",
+    "quickEnquiry": "Send a quick enquiry"
+  },
+  "enquiry": {
+    "title": "Plan your event",
+    "intro": "Tell us a little about your celebration. It takes less than a minute.",
+    "stepOf": "Step {current} of {total}",
+    "step1": "Your event",
+    "step2": "Your vision",
+    "step3": "Your details",
+    "eventType": "Type of event",
+    "chooseEventType": "Choose an event type",
+    "preferredDate": "Preferred date",
+    "optional": "optional",
+    "guests": "Approximate number of guests",
+    "message": "Tell us about your vision",
+    "messageHint": "Themes, number of functions, anything you'd like us to know.",
+    "preferredHall": "Preferred venue",
+    "noPreference": "No preference",
+    "fullName": "Full name",
+    "phone": "Mobile number",
+    "phoneHint": "10-digit Indian mobile, or international number with country code.",
+    "email": "Email",
+    "contactPreference": "How should we contact you?",
+    "viaWhatsapp": "WhatsApp",
+    "viaCall": "Phone call",
+    "viaEmail": "Email",
+    "consent": "I agree that The Sundaram Palace may contact me about this enquiry and store these details for that purpose, as described in the privacy policy.",
+    "privacyLink": "Read the privacy policy",
+    "next": "Continue",
+    "back": "Back",
+    "submit": "Send enquiry",
+    "sending": "Sending…",
+    "successTitle": "Thank you — we've received your enquiry",
+    "successReference": "Your reference is {reference}.",
+    "successResponse": "Our team will get in touch soon.",
+    "successAgain": "Send another enquiry",
+    "errorGeneric": "Sorry, something went wrong and your enquiry was not sent. Please try again, or contact us directly.",
+    "errorRateLimited": "We've received several enquiries from this connection. Please wait a little and try again, or contact us directly.",
+    "errorFix": "Please check the highlighted fields.",
+    "contactDirect": "You can also reach us directly:",
+    "required": "This field is required",
+    "invalidPhone": "Enter a valid mobile number",
+    "invalidEmail": "Enter a valid email address",
+    "consentRequired": "Please agree so that we can contact you",
+    "invalidGuests": "Enter a number between 1 and 100000",
+    "invalidDate": "Choose a date from today onwards"
   },
   "footer": {
-    "rights": "All rights reserved."
+    "explore": "Explore",
+    "legal": "Legal",
+    "rights": "All rights reserved.",
+    "contactUs": "Contact"
+  },
+  "legal": {
+    "pending": "This policy is being finalised and will be published here after review. For any questions about how we use your information, please contact us."
   },
   "notFound": {
     "title": "Page not found",
     "body": "The page you were looking for doesn't exist or has moved.",
     "home": "Go to the home page"
+  },
+  "error": {
+    "title": "Something went wrong",
+    "body": "Please try again in a moment.",
+    "retry": "Try again"
   }
 }

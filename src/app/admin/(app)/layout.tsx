@@ -4,6 +4,10 @@ import { MobileNav } from "@/components/crm/mobile-nav";
 import { visibleNav } from "@/components/crm/nav";
 import { SidebarNav } from "@/components/crm/sidebar-nav";
 import { UserMenu } from "@/components/crm/user-menu";
+import { Bell } from "lucide-react";
+import Link from "next/link";
+
+import { db } from "@/lib/db";
 import { requireUser } from "@/server/auth/session";
 
 /**
@@ -14,6 +18,7 @@ import { requireUser } from "@/server/auth/session";
 export default async function CrmLayout({ children }: { children: ReactNode }) {
   const user = await requireUser();
   const hrefs = visibleNav(user.permissions).map((item) => item.href);
+  const unread = await db.notification.count({ where: { userId: user.id, readAt: null } });
   return (
     <div className="flex min-h-dvh">
       <aside className="hidden w-64 shrink-0 border-r border-border bg-surface px-4 py-6 lg:block">
@@ -26,7 +31,19 @@ export default async function CrmLayout({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 items-center justify-between border-b border-border bg-surface px-4 md:px-6">
           <MobileNav hrefs={hrefs} />
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
+            <Link
+              href="/admin/notifications"
+              className="relative rounded-md p-2 hover:bg-blush/60"
+              aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+            >
+              <Bell className="size-5" aria-hidden="true" />
+              {unread ? (
+                <span className="absolute top-1 right-1 flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] leading-4 font-semibold text-primary-foreground">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              ) : null}
+            </Link>
             <UserMenu name={user.name} email={user.email} />
           </div>
         </header>

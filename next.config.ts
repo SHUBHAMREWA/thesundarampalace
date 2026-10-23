@@ -21,7 +21,8 @@ const nextConfig: NextConfig = {
     },
   },
   images: {
-    remotePatterns: [{ protocol: "https", hostname: "res.cloudinary.com" }],
+    loader: "custom",
+    loaderFile: "./src/lib/media/image-loader.ts",
   },
   async headers() {
     return [{ source: "/:path*", headers: staticSecurityHeaders() }];

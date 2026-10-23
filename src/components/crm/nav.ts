@@ -1,4 +1,4 @@
-import { LayoutDashboard, Settings, type LucideIcon } from "lucide-react";
+import { Bell, Globe, Inbox, LayoutDashboard, Settings, Users, type LucideIcon } from "lucide-react";
 
 import type { PermissionKey } from "@/lib/permissions/registry";
 
@@ -15,6 +15,10 @@ export type NavItem = {
  */
 export const NAV_ITEMS: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, permission: "dashboard.view" },
+  { href: "/admin/leads", label: "Leads", icon: Inbox, permission: "leads.read" },
+  { href: "/admin/notifications", label: "Notifications", icon: Bell, permission: "dashboard.view" },
+  { href: "/admin/cms", label: "Website CMS", icon: Globe, permission: "cms.edit" },
+  { href: "/admin/staff", label: "Staff", icon: Users, permission: "users.manage" },
   { href: "/admin/settings", label: "Settings", icon: Settings, permission: "settings.manage" },
 ];
 

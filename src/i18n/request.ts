@@ -2,7 +2,7 @@ import { hasLocale } from "next-intl";
 import { getRequestConfig } from "next-intl/server";
 import { locale as rootLocale } from "next/root-params";
 
-import en from "../../messages/en.json";
+import en from "@messages/en.json";
 import { routing } from "./routing";
 
 type Messages = { [key: string]: string | Messages };

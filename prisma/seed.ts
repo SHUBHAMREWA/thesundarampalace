@@ -9,7 +9,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword } from "better-auth/crypto";
 
 import { PrismaClient } from "../src/generated/prisma/client";
-import { seedLookups, seedSettings, syncAccess } from "./seed-lib";
+import { seedCms, seedLookups, seedSettings, syncAccess } from "./seed-lib";
 
 const url = process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is not set");
@@ -46,6 +46,7 @@ async function main() {
   await syncAccess(db);
   await seedLookups(db);
   await seedSettings(db);
+  await seedCms(db);
   await seedLocalAdmin();
   console.log("Seed complete");
 }

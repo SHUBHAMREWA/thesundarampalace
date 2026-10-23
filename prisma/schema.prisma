@@ -1,6 +1,7 @@
 // The Sundaram Palace — database schema.
 // Read docs/database-design.md and the db-change-safety skill before changing.
 // Phase 1: identity, permissions, settings, numbering, audit.
+// Phase 2: website CMS, venue facts, public menus, leads, notifications.
 
 generator client {
   provider = "prisma-client"
@@ -25,10 +26,12 @@ model User {
   createdAt        DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime  @updatedAt @db.Timestamptz(3)
 
-  sessions   Session[]
-  accounts   Account[]
-  twoFactors TwoFactor[]
-  roles      UserRole[]
+  sessions      Session[]
+  accounts      Account[]
+  twoFactors    TwoFactor[]
+  roles         UserRole[]
+  assignedLeads Lead[]         @relation("LeadAssignee")
+  notifications Notification[]
 
   @@map("user")
 }
@@ -240,4 +243,370 @@ model RateLimitBucket {
   @@id([key, windowStart])
   @@index([windowStart])
   @@map("rate_limit_bucket")
+}
+
+// ─── Website CMS (Phase 2) ───────────────────────────────────────────────────
+// Localized text fields are Json: { en: string, hi?: string }.
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+  DOCUMENT
+}
+
+/// Public media stored in Cloudinary. Metadata lives here, not in Cloudinary.
+model MediaAsset {
+  id                 String           @id @default(cuid())
+  publicId           String           @unique
+  resourceType       String // image | video | raw
+  format             String?
+  kind               MediaKind
+  width              Int?
+  height             Int?
+  bytes              Int?
+  alt                Json // { en (required), hi? }
+  caption            Json?
+  photographerCredit String?
+  usagePermission    String?
+  group              String // hero, halls, floor_plans, catering, decor, gallery, brochure
+  uploadedById       String?
+  placements         MediaPlacement[]
+  galleryItems       GalleryItem[]
+  pagesHero          WebsitePage[]
+  hallsHero          Hall[]           @relation("HallHero")
+  hallsFloorPlan     Hall[]           @relation("HallFloorPlan")
+  createdAt          DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime         @updatedAt @db.Timestamptz(3)
+
+  @@index([group, createdAt])
+  @@map("media_asset")
+}
+
+/// Ordered images attached to a hall, decor theme, etc. Assets in use can't be deleted.
+model MediaPlacement {
+  id        String     @id @default(cuid())
+  assetId   String
+  asset     MediaAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  ownerType String // hall | decor_theme
+  ownerId   String
+  sortOrder Int        @default(0)
+
+  @@unique([ownerType, ownerId, assetId])
+  @@index([ownerType, ownerId, sortOrder])
+  @@map("media_placement")
+}
+
+enum PageKind {
+  STANDARD
+  SERVICE
+  LEGAL
+}
+
+/// Every public page's title, intro, body and SEO fields.
+model WebsitePage {
+  id          String      @id @default(cuid())
+  kind        PageKind
+  slug        String
+  title       Json
+  summary     Json?
+  body        Json? // { en?: string, hi?: string } restricted Markdown
+  heroAssetId String?
+  heroAsset   MediaAsset? @relation(fields: [heroAssetId], references: [id], onDelete: Restrict)
+  seo         Json? // { title?: Localized, description?: Localized }
+  published   Boolean     @default(false)
+  publishedAt DateTime?   @db.Timestamptz(3)
+  sortOrder   Int         @default(0)
+  updatedById String?
+  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime    @updatedAt @db.Timestamptz(3)
+
+  @@unique([kind, slug])
+  @@map("website_page")
+}
+
+/// Homepage blocks: order, visibility and per-section text.
+model HomeSection {
+  type      String   @id
+  sortOrder Int      @default(0)
+  visible   Boolean  @default(true)
+  content   Json
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("home_section")
+}
+
+enum HallLayout {
+  THEATRE
+  BANQUET
+  FLOATING
+  CLUSTER
+}
+
+/// Halls and lawns. Fact fields are nullable: unknown is shown as "coming soon", never 0.
+/// Booking fields (buffers, composite) are used from Phase 3.
+model Hall {
+  id                    String               @id @default(cuid())
+  slug                  String               @unique
+  name                  Json
+  summary               Json?
+  description           Json?
+  areaSqFt              Int?
+  ceilingHeightFt       Decimal?             @db.Decimal(5, 2)
+  facilities            Json // [{ key, note? }]
+  eventTypeKeys         Json // ["wedding", ...]
+  slotsInfo             Json?
+  heroAssetId           String?
+  heroAsset             MediaAsset?          @relation("HallHero", fields: [heroAssetId], references: [id], onDelete: Restrict)
+  floorPlanAssetId      String?
+  floorPlanAsset        MediaAsset?          @relation("HallFloorPlan", fields: [floorPlanAssetId], references: [id], onDelete: Restrict)
+  tourUrl               String?
+  seo                   Json?
+  published             Boolean              @default(false)
+  active                Boolean              @default(true)
+  sortOrder             Int                  @default(0)
+  setupBufferMinutes    Int                  @default(0)
+  teardownBufferMinutes Int                  @default(0)
+  isComposite           Boolean              @default(false)
+  capacities            HallLayoutCapacity[]
+  leads                 Lead[]
+  createdAt             DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime             @updatedAt @db.Timestamptz(3)
+
+  @@index([published, sortOrder])
+  @@map("hall")
+}
+
+model HallLayoutCapacity {
+  id        String     @id @default(cuid())
+  hallId    String
+  hall      Hall       @relation(fields: [hallId], references: [id], onDelete: Cascade)
+  layout    HallLayout
+  minGuests Int?
+  maxGuests Int?
+
+  @@unique([hallId, layout])
+  @@map("hall_layout_capacity")
+}
+
+/// Menus shared by the website (publicVisible) and, from Phase 3, the CRM.
+model Menu {
+  id            String     @id @default(cuid())
+  name          Json
+  category      String // veg | jain | non_veg | custom
+  description   Json?
+  publicVisible Boolean    @default(false)
+  sortOrder     Int        @default(0)
+  items         MenuItem[]
+  createdAt     DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime   @updatedAt @db.Timestamptz(3)
+
+  @@map("menu")
+}
+
+model MenuItem {
+  id          String @id @default(cuid())
+  menuId      String
+  menu        Menu   @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  course      String // welcome_drinks | starters | main_course | breads | rice | desserts | live_counters | other
+  name        Json
+  description Json?
+  sortOrder   Int    @default(0)
+
+  @@index([menuId, course, sortOrder])
+  @@map("menu_item")
+}
+
+model DecorTheme {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        Json
+  description Json?
+  published   Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("decor_theme")
+}
+
+/// Public packages. Prices show only when an administrator enables it.
+model Package {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  name            Json
+  description     Json?
+  inclusions      Json? // Localized, one item per line
+  addOns          Json?
+  terms           Json?
+  eventTypeKeys   Json
+  publicPrice     Decimal? @db.Decimal(12, 2)
+  publicPriceNote Json?
+  showPublicPrice Boolean  @default(false)
+  published       Boolean  @default(false)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("package")
+}
+
+model GalleryCategory {
+  id        String        @id @default(cuid())
+  key       String        @unique
+  name      Json
+  sortOrder Int           @default(0)
+  items     GalleryItem[]
+
+  @@map("gallery_category")
+}
+
+model GalleryItem {
+  id         String          @id @default(cuid())
+  categoryId String
+  category   GalleryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  assetId    String
+  asset      MediaAsset      @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  featured   Boolean         @default(false)
+  sortOrder  Int             @default(0)
+  createdAt  DateTime        @default(now()) @db.Timestamptz(3)
+
+  @@unique([categoryId, assetId])
+  @@map("gallery_item")
+}
+
+/// Popular / auspicious dates supplied by the business (never computed by us).
+model AuspiciousDate {
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date
+  label     Json
+  note      Json?
+  published Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([published, date])
+  @@map("auspicious_date")
+}
+
+// ─── Leads and messaging (Phase 2) ───────────────────────────────────────────
+
+model Lead {
+  id                String         @id @default(cuid())
+  reference         String         @unique
+  statusKey         String // lookup_value(lead_status).key
+  sourceKey         String // lookup_value(lead_source).key
+  campaign          String?
+  utm               Json?
+  referrer          String?
+  landingPage       String?
+  locale            String         @default("en")
+  eventTypeKey      String?
+  preferredDate     DateTime?      @db.Date
+  guestsApprox      Int?
+  message           String?
+  preferredHallId   String?
+  preferredHall     Hall?          @relation(fields: [preferredHallId], references: [id], onDelete: SetNull)
+  fullName          String
+  phone             String // E.164
+  email             String?
+  contactPreference String // whatsapp | call | email
+  assignedToId      String?
+  assignedTo        User?          @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  followUpAt        DateTime?      @db.Timestamptz(3)
+  budgetEstimate    Decimal?       @db.Decimal(12, 2)
+  menuPreference    String? // veg | jain | non_veg
+  siteVisitAt       DateTime?      @db.Timestamptz(3)
+  siteVisitOutcome  String?
+  lostReasonKey     String?
+  lastActivityAt    DateTime       @default(now()) @db.Timestamptz(3)
+  deletedAt         DateTime?      @db.Timestamptz(3)
+  activities        LeadActivity[]
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
+
+  @@index([phone])
+  @@index([statusKey, createdAt])
+  @@index([assignedToId, followUpAt])
+  @@index([createdAt])
+  @@map("lead")
+}
+
+model LeadActivity {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  kind      String // CREATED | MERGED_ENQUIRY | CALL | WHATSAPP | VISIT | NOTE | STATUS_CHANGE | ASSIGNED | FOLLOW_UP | UPDATED
+  note      String?
+  data      Json?
+  actorId   String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([leadId, createdAt])
+  @@map("lead_activity")
+}
+
+/// One row per consent change; the latest row for (subject, purpose) wins.
+model ConsentRecord {
+  id            String   @id @default(cuid())
+  subjectType   String // LEAD | CUSTOMER | PARTY
+  subjectId     String
+  purpose       String // contact | brochure | site_visit | marketing_whatsapp | marketing_email | greetings
+  granted       Boolean
+  noticeVersion String
+  source        String
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([subjectType, subjectId, purpose, createdAt])
+  @@map("consent_record")
+}
+
+/// In-app notifications for staff.
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([userId, readAt, createdAt])
+  @@map("notification")
+}
+
+/// Outgoing email/WhatsApp/SMS. Never claims "sent" without a provider.
+model Outbox {
+  id                String    @id @default(cuid())
+  channel           String // email | whatsapp | sms
+  template          String
+  toAddress         String
+  payload           Json
+  purpose           String
+  status            String    @default("PENDING") // PENDING | SENT | FAILED | NOT_SENT_NO_PROVIDER | SKIPPED_NO_CONSENT
+  attempts          Int       @default(0)
+  nextAttemptAt     DateTime? @db.Timestamptz(3)
+  lastError         String?
+  providerMessageId String?
+  relatedType       String?
+  relatedId         String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([status, nextAttemptAt])
+  @@index([relatedType, relatedId])
+  @@map("outbox")
+}
+
+/// Conversion counts for reports. Never stores names, phones or emails.
+model ConversionEvent {
+  id        String   @id @default(cuid())
+  type      String // enquiry_submitted | whatsapp_click | call_click | brochure_download | site_visit_booked | date_check_used
+  page      String?
+  locale    String?
+  utm       Json?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([type, createdAt])
+  @@map("conversion_event")
 }
