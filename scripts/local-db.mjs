@@ -9,9 +9,27 @@
 //   sundaram_e2e   for `npm run test:e2e` (reset by the Playwright setup)
 import EmbeddedPostgres from "embedded-postgres";
 import { existsSync } from "node:fs";
+import net from "node:net";
 import path from "node:path";
 
 const PORT = Number(process.env.LOCAL_PG_PORT ?? 54329);
+
+function portInUse(port) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ port, host: "127.0.0.1" });
+    socket.once("connect", () => {
+      socket.end();
+      resolve(true);
+    });
+    socket.once("error", () => resolve(false));
+  });
+}
+
+if (await portInUse(PORT)) {
+  console.log(`Local PostgreSQL is already running on port ${PORT} — nothing to do.`);
+  console.log("You can go straight to: npm run dev");
+  process.exit(0);
+}
 const dataDir = path.resolve(".local/pgdata");
 const isNew = !existsSync(path.join(dataDir, "PG_VERSION"));
 
@@ -26,11 +44,18 @@ const pg = new EmbeddedPostgres({
   onLog: () => {},
 });
 
-if (isNew) {
-  console.log("Initialising local PostgreSQL in .local/pgdata …");
-  await pg.initialise();
+try {
+  if (isNew) {
+    console.log("Initialising local PostgreSQL in .local/pgdata …");
+    await pg.initialise();
+  }
+  await pg.start();
+} catch (error) {
+  console.error("Could not start the local PostgreSQL server.");
+  console.error(error instanceof Error ? error.message : (error ?? "No details were reported."));
+  console.error("If a previous run crashed, delete .local/pgdata/postmaster.pid and try again.");
+  process.exit(1);
 }
-await pg.start();
 
 for (const name of ["sundaram_dev", "sundaram_test", "sundaram_e2e"]) {
   try {
