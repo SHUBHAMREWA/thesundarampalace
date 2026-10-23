@@ -1,0 +1,28 @@
+name: Scheduler
+
+# Vercel Hobby runs cron only once a day, so scheduled jobs are triggered
+# from here (docs/architecture.md ADR-11). Hourly jobs are added in Phase 3.
+# Setup: repository secret CRON_SECRET and variable APP_URL
+# (e.g. https://<domain>), then set variable SCHEDULER_ENABLED=true.
+
+on:
+  schedule:
+    - cron: "30 0 * * *" # 06:00 IST
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  daily:
+    if: ${{ vars.SCHEDULER_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Run daily jobs
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            -X POST "$APP_URL/api/cron/daily" \
+            -H "Authorization: Bearer $CRON_SECRET"

@@ -1,0 +1,53 @@
+name: Nightly database backup
+
+# Neon Free can only restore 6 hours back, so this is the real backup
+# (docs/deployment.md §7). The dump is encrypted with `age` before it leaves
+# the runner; only the holders of the private key can read it.
+#
+# Setup:
+#   1. Generate a key pair OFFLINE: `age-keygen -o sundaram-backup.key`
+#      Keep the private key file somewhere safe (owner + developer), never in GitHub.
+#   2. Put the public key ("age1…") in ops/backup/age-recipients.txt and commit it.
+#   3. Repository secret BACKUP_DATABASE_URL = a READ-ONLY role's direct Neon URL.
+#   4. Repository variable BACKUP_ENABLED = true.
+
+on:
+  schedule:
+    - cron: "30 20 * * *" # 02:00 IST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    if: ${{ vars.BACKUP_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: ops/backup
+      - name: Check recipients file
+        run: test -s ops/backup/age-recipients.txt || (echo "Add the age public key to ops/backup/age-recipients.txt" && exit 1)
+      - name: Install age
+        run: sudo apt-get update -q && sudo apt-get install -y -q age
+      - name: Dump and encrypt
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          STAMP=$(TZ=Asia/Kolkata date +%Y-%m-%d)
+          docker run --rm -e PGURL="$BACKUP_DATABASE_URL" postgres:17 \
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges "$PGURL"' \
+            | age --encrypt --recipients-file ops/backup/age-recipients.txt \
+            > "sundaram-$STAMP.dump.age"
+          test -s "sundaram-$STAMP.dump.age"
+          ls -lh "sundaram-$STAMP.dump.age"
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sundaram-db-${{ env.STAMP }}
+          path: sundaram-*.dump.age
+          retention-days: 30
+          if-no-files-found: error

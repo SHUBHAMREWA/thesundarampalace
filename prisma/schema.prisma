@@ -1,0 +1,243 @@
+// The Sundaram Palace — database schema.
+// Read docs/database-design.md and the db-change-safety skill before changing.
+// Phase 1: identity, permissions, settings, numbering, audit.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Identity (fields required by Better Auth + our own) ────────────────────
+
+model User {
+  id               String    @id @default(cuid())
+  name             String
+  email            String    @unique
+  emailVerified    Boolean   @default(false)
+  image            String?
+  twoFactorEnabled Boolean   @default(false)
+  active           Boolean   @default(true)
+  lastLoginAt      DateTime? @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(3)
+
+  sessions   Session[]
+  accounts   Account[]
+  twoFactors TwoFactor[]
+  roles      UserRole[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime @db.Timestamptz(3)
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime? @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime? @db.Timestamptz(3)
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model TwoFactor {
+  id                      String    @id @default(cuid())
+  secret                  String
+  backupCodes             String
+  userId                  String
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified                Boolean   @default(true)
+  failedVerificationCount Int       @default(0)
+  lockedUntil             DateTime? @db.Timestamptz(3)
+
+  @@index([secret])
+  @@index([userId])
+  @@map("two_factor")
+}
+
+/// Better Auth's own rate limiter for sign-in and 2FA endpoints.
+model RateLimit {
+  id          String @id @default(cuid())
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@map("auth_rate_limit")
+}
+
+// ─── Roles and permissions (code checks permissions, never role names) ──────
+
+model Role {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  name        String
+  description String?
+  requires2fa Boolean          @default(false)
+  system      Boolean          @default(true)
+  permissions RolePermission[]
+  users       UserRole[]
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
+
+  @@map("role")
+}
+
+model Permission {
+  key         String           @id
+  description String
+  roles       RolePermission[]
+
+  @@map("permission")
+}
+
+model RolePermission {
+  roleId        String
+  permissionKey String
+  role          Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission    Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+
+  @@id([roleId, permissionKey])
+  @@map("role_permission")
+}
+
+model UserRole {
+  userId    String
+  roleId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_role")
+}
+
+// ─── Settings and configurable lists ─────────────────────────────────────────
+
+/// Typed settings sections (business, tax, numbering, booking policy, …),
+/// validated by Zod in src/server/services/settings.ts.
+model SiteSetting {
+  key         String   @id
+  value       Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("site_setting")
+}
+
+/// Lead statuses, sources, lost reasons, event types, customer categories, …
+/// Logic depends only on `systemKey`, never on labels.
+model LookupValue {
+  id        String   @id @default(cuid())
+  listKey   String
+  key       String
+  label     Json // { en: string, hi?: string }
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  systemKey String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([listKey, key])
+  @@index([listKey, active, sortOrder])
+  @@map("lookup_value")
+}
+
+/// Gap-free document numbers. `period` is a calendar year ("2026") for
+/// lead/booking references and a financial year ("2026-27") for invoices.
+model NumberSequence {
+  type      String
+  period    String
+  prefix    String
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@id([type, period])
+  @@map("number_sequence")
+}
+
+// ─── Audit and activity ──────────────────────────────────────────────────────
+
+/// Append-only (database trigger blocks UPDATE and DELETE).
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String?
+  summary    Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+/// Timeline entries shown on lead, customer and booking pages.
+model ActivityLog {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  actorId    String?
+  kind       String
+  message    String
+  data       Json?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([entityType, entityId, createdAt])
+  @@map("activity_log")
+}
+
+/// Fixed-window counters for public endpoint rate limiting. Pruned daily.
+model RateLimitBucket {
+  key         String
+  windowStart DateTime @db.Timestamptz(3)
+  count       Int      @default(0)
+
+  @@id([key, windowStart])
+  @@index([windowStart])
+  @@map("rate_limit_bucket")
+}

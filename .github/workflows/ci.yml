@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main, production]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sundaram_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: test
+      # Throwaway CI-only values; real secrets never live in the repo.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sundaram_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sundaram_test
+      E2E_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sundaram_e2e
+      BETTER_AUTH_SECRET: ci-only-secret-ci-only-secret-ci-only-1234
+      BETTER_AUTH_URL: http://localhost:3000
+      CRON_SECRET: ci-only-cron-secret-1234
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Type check
+        run: npm run typecheck
+      - name: Lint (incl. colour-token guard)
+        run: npm run lint
+      - name: Unit + integration tests (migrations applied to an empty DB)
+        run: npm run test
+      - name: Build
+        run: npm run build
+      - name: Create e2e database
+        run: node -e "const {Client}=require('pg');const c=new Client('postgresql://postgres:postgres@localhost:5432/postgres');c.connect().then(()=>c.query('CREATE DATABASE sundaram_e2e')).finally(()=>c.end())"
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end tests
+        run: npm run test:e2e
+      - name: Dependency audit
+        run: npm audit --audit-level=high --omit=dev
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: test-results/
+          retention-days: 7

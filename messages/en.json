@@ -1,0 +1,27 @@
+{
+  "site": {
+    "name": "The Sundaram Palace",
+    "skipToContent": "Skip to content",
+    "language": "Language",
+    "switchTo": "हिन्दी"
+  },
+  "nav": {
+    "home": "Home",
+    "primary": "Main navigation"
+  },
+  "home": {
+    "metaTitle": "The Sundaram Palace — Weddings and celebrations",
+    "metaDescription": "Wedding venue and banquet halls. Our new website is being prepared.",
+    "eyebrow": "Weddings & celebrations",
+    "title": "The Sundaram Palace",
+    "comingSoon": "Our new website is being prepared. Venue details, photographs and enquiry options will appear here soon."
+  },
+  "footer": {
+    "rights": "All rights reserved."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "body": "The page you were looking for doesn't exist or has moved.",
+    "home": "Go to the home page"
+  }
+}
