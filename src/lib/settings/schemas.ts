@@ -1,8 +1,5 @@
 import { z } from "zod";
 
-// Relative import: the seed script and Playwright setup load this file too.
-import { isGstStateCode, isValidGstin } from "../validation/gst";
-
 /**
  * Typed settings sections stored in `site_setting`. Business facts default to
  * null and are filled in by the business (docs/missing-business-info.md);
@@ -28,9 +25,6 @@ const localizedNullable = z
 export const businessSettingsSchema = z.object({
   displayName: z.string().trim().min(1).max(120),
   legalName: nullableText,
-  gstin: nullableText.refine((v) => !v || isValidGstin(v), "Enter a valid 15-character GSTIN"),
-  /** GST state code of the venue (first two digits of the GSTIN). */
-  stateCode: nullableText.refine((v) => !v || isGstStateCode(v), "Choose the venue's state"),
   address: nullableText,
   city: nullableText,
   /** E.164, validated by the settings form with the shared phone schema. */
@@ -72,7 +66,7 @@ const gstDocumentPrefix = z
   .string()
   .trim()
   .toUpperCase()
-  .regex(/^[A-Z0-9]{1,4}$/, "1–4 letters or digits (GST numbers are limited to 16 characters)");
+  .regex(/^[A-Z0-9]{1,4}$/, "1–4 letters or digits");
 
 export const numberingSettingsSchema = z.object({
   leadPrefix: referencePrefix,
@@ -120,10 +114,8 @@ export const bookingPolicySettingsSchema = z.object({
   refundPlateShortfall: z.boolean(),
 });
 
-/** Tax behaviour. Rates and SAC codes live in tax categories, never in code. */
+/** Totals and invoice wording. The business charges no GST (owner decision, 26 Oct 2026). */
 export const taxSettingsSchema = z.object({
-  /** New quotations treat entered prices as GST-inclusive. */
-  pricesIncludeTaxByDefault: z.boolean(),
   /** Round quotation and invoice grand totals to the nearest rupee (difference shown as round-off). */
   roundGrandTotal: z.boolean(),
   /** Printed under invoice totals, e.g. "Whether tax is payable under reverse charge: No". */
@@ -164,8 +156,6 @@ export const DEFAULT_SETTINGS: { [K in SettingsSectionKey]: SettingsSection<K> }
   business: {
     displayName: "The Sundaram Palace",
     legalName: null,
-    gstin: null,
-    stateCode: null,
     address: null,
     city: null,
     phone: null,
@@ -208,7 +198,7 @@ export const DEFAULT_SETTINGS: { [K in SettingsSectionKey]: SettingsSection<K> }
     defaultCancellationPolicyId: null,
     refundPlateShortfall: false,
   },
-  tax: { pricesIncludeTaxByDefault: false, roundGrandTotal: false, invoiceNotes: null },
+  tax: { roundGrandTotal: false, invoiceNotes: null },
   documents: {
     tagline: null,
     footerText: null,
@@ -226,6 +216,6 @@ export const SETTINGS_LABELS: Record<SettingsSectionKey, string> = {
   numbering: "Reference numbering",
   enquiry: "Enquiries",
   bookingPolicy: "Booking policy",
-  tax: "Tax and invoices",
+  tax: "Totals and invoices",
   documents: "Document wording",
 };

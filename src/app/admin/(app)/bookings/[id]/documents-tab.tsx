@@ -1,40 +1,141 @@
-import { Download } from "lucide-react";
+import { Download, Files } from "lucide-react";
+import { FOOD_MENU_PDF_URL } from "@/lib/menu/food-menu";
+import { SectionTitle } from "@/components/crm/person-avatar";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/lib/db";
 import { formatINR } from "@/lib/money";
-import { DOCUMENT_TYPES, FIELDS, TEMPLATES, type DocumentTypeKey } from "@/lib/pdf/fields";
+import {
+  DOCUMENT_TYPES,
+  FIELDS,
+  TEMPLATES,
+  type DocumentTypeKey,
+} from "@/lib/pdf/fields";
 import { dateKey, formatDateKey, formatIST } from "@/lib/time";
 import type { CurrentUser } from "@/server/auth/session";
 import { can } from "@/server/policies/authorize";
 import type { getBookingDetail } from "@/server/services/bookings";
-import { listGeneratedDocuments, listPresets, pdfAvailable } from "@/server/services/documents";
+import {
+  listGeneratedDocuments,
+  listPresets,
+  pdfAvailable,
+} from "@/server/services/documents";
 
-import { DocumentGenerator, type GeneratorField, type GeneratorPreset, type GeneratorType } from "./document-generator";
+import {
+  DocumentGenerator,
+  type GeneratorField,
+  type GeneratorPreset,
+  type GeneratorType,
+} from "./document-generator";
 
 type Booking = Awaited<ReturnType<typeof getBookingDetail>>;
 
-export async function DocumentsTab({ booking, user, initialType, initialSource }: { booking: Booking; user: CurrentUser; initialType: string | null; initialSource: string | null }) {
-  const allowedTypes = Object.values(DOCUMENT_TYPES).filter((t) => can(user, t.permission));
-  if (!allowedTypes.length) return <p className="text-sm text-text-muted">Your role can&apos;t generate documents for this booking.</p>;
-  const [quotations, payments, invoices, creditNotes, history] = await Promise.all([
-    db.quotationVersion.findMany({ where: { bookingId: booking.id }, orderBy: { versionNumber: "desc" }, select: { id: true, versionNumber: true, status: true, grandTotal: true } }),
-    can(user, "payments.read") ? db.ledgerEntry.findMany({ where: { bookingId: booking.id, type: "PAYMENT" }, orderBy: { occurredOn: "desc" }, select: { id: true, receiptNumber: true, amount: true, occurredOn: true } }) : [],
-    can(user, "payments.read") ? db.invoice.findMany({ where: { bookingId: booking.id }, orderBy: { createdAt: "desc" }, select: { id: true, number: true, grandTotal: true } }) : [],
-    can(user, "payments.read") ? db.creditNote.findMany({ where: { bookingId: booking.id }, orderBy: { createdAt: "desc" }, select: { id: true, number: true, grandTotal: true } }) : [],
-    listGeneratedDocuments(user, booking.id),
-  ]);
+export async function DocumentsTab({
+  booking,
+  user,
+  initialType,
+  initialSource,
+}: {
+  booking: Booking;
+  user: CurrentUser;
+  initialType: string | null;
+  initialSource: string | null;
+}) {
+  // Only the documents the venue uses (owner, 29 Oct 2026). The food menu is the uploaded menu
+  // PDF (below); the quotation PDF is on the Quotations tab; an invoice or credit note opens
+  // here only from its "PDF" link on Payments.
+  const shown: DocumentTypeKey[] = [
+    "booking_confirmation",
+    "payment_receipt",
+    "booking_summary",
+  ];
+  if (initialType === "tax_invoice" || initialType === "credit_note")
+    shown.push(initialType);
+  const allowedTypes = shown
+    .map((key) => DOCUMENT_TYPES[key])
+    .filter((t) => can(user, t.permission));
+  if (!allowedTypes.length)
+    return (
+      <p className="text-sm text-text-muted">
+        Your role can&apos;t generate documents for this booking.
+      </p>
+    );
+  const [quotations, payments, invoices, creditNotes, history] =
+    await Promise.all([
+      db.quotationVersion.findMany({
+        where: { bookingId: booking.id },
+        orderBy: { versionNumber: "desc" },
+        select: {
+          id: true,
+          versionNumber: true,
+          status: true,
+          grandTotal: true,
+        },
+      }),
+      can(user, "payments.read")
+        ? db.ledgerEntry.findMany({
+            where: { bookingId: booking.id, type: "PAYMENT" },
+            orderBy: { occurredOn: "desc" },
+            select: {
+              id: true,
+              receiptNumber: true,
+              amount: true,
+              occurredOn: true,
+            },
+          })
+        : [],
+      can(user, "payments.read")
+        ? db.invoice.findMany({
+            where: { bookingId: booking.id },
+            orderBy: { createdAt: "desc" },
+            select: { id: true, number: true, grandTotal: true },
+          })
+        : [],
+      can(user, "payments.read")
+        ? db.creditNote.findMany({
+            where: { bookingId: booking.id },
+            orderBy: { createdAt: "desc" },
+            select: { id: true, number: true, grandTotal: true },
+          })
+        : [],
+      listGeneratedDocuments(user, booking.id),
+    ]);
   const sourcesFor = (key: DocumentTypeKey) => {
     switch (DOCUMENT_TYPES[key].source) {
       case "quotation":
-        return { label: "Quotation version", items: quotations.map((q) => ({ id: q.id, label: `v${q.versionNumber} · ${q.status.toLowerCase()} · ${formatINR(q.grandTotal)}` })) };
+        return {
+          label: "Quotation version",
+          items: quotations.map((q) => ({
+            id: q.id,
+            label: `v${q.versionNumber} · ${q.status.toLowerCase()} · ${formatINR(q.grandTotal)}`,
+          })),
+        };
       case "receipt":
-        return { label: "Payment", items: payments.map((p) => ({ id: p.id, label: `${p.receiptNumber} · ${formatDateKey(dateKey(p.occurredOn))} · ${formatINR(p.amount)}` })) };
+        return {
+          label: "Payment",
+          items: payments.map((p) => ({
+            id: p.id,
+            label: `${p.receiptNumber} · ${formatDateKey(dateKey(p.occurredOn))} · ${formatINR(p.amount)}`,
+          })),
+        };
       case "invoice":
-        return { label: "Invoice", items: invoices.map((i) => ({ id: i.id, label: `${i.number} · ${formatINR(i.grandTotal)}` })) };
+        return {
+          label: "Invoice",
+          items: invoices.map((i) => ({
+            id: i.id,
+            label: `${i.number} · ${formatINR(i.grandTotal)}`,
+          })),
+        };
       case "credit_note":
-        return { label: "Credit note", items: creditNotes.map((c) => ({ id: c.id, label: `${c.number} · ${formatINR(c.grandTotal)}` })) };
+        return {
+          label: "Credit note",
+          items: creditNotes.map((c) => ({
+            id: c.id,
+            label: `${c.number} · ${formatINR(c.grandTotal)}`,
+          })),
+        };
       default:
         return { label: null, items: [] };
     }
@@ -45,30 +146,69 @@ export async function DocumentsTab({ booking, user, initialType, initialSource }
       key: t.key,
       title: t.title,
       fields: t.fields,
-      defaults: t.defaults.filter((f) => !FIELDS[f].permission || can(user, FIELDS[f].permission!)),
+      defaults: t.defaults.filter(
+        (f) => !FIELDS[f].permission || can(user, FIELDS[f].permission!),
+      ),
       mandatory: t.mandatory,
-      templates: TEMPLATES.filter((x) => t.templates.includes(x.key)).map((x) => ({ key: x.key, label: x.label })),
+      templates: TEMPLATES.filter((x) => t.templates.includes(x.key)).map(
+        (x) => ({ key: x.key, label: x.label }),
+      ),
       defaultTemplate: t.defaultTemplate,
       sources: source.items,
       sourceLabel: source.label,
       note:
         t.key === "tax_invoice" || t.key === "credit_note"
-          ? "GST particulars (numbers, GSTINs, SAC, tax split, place of supply, amount in words) are always printed."
-          : t.key === "kitchen_sheet"
-            ? "No prices are ever printed on kitchen sheets."
+          ? "The number, date, seller and buyer, lines, total and amount in words are always printed."
+          : t.key === "menu"
+            ? "No prices are ever printed on the menu, so it can go to the customer and the caterer."
             : t.storePdf
               ? "A copy of every PDF is kept."
               : null,
     };
   });
   const fields: Record<string, GeneratorField> = Object.fromEntries(
-    Object.values(FIELDS).map((f) => [f.key, { key: f.key, label: f.label, group: f.group, sensitive: !!f.sensitive, allowed: !f.permission || can(user, f.permission) }]),
+    Object.values(FIELDS).map((f) => [
+      f.key,
+      {
+        key: f.key,
+        label: f.label,
+        group: f.group,
+        sensitive: !!f.sensitive,
+        allowed: !f.permission || can(user, f.permission),
+      },
+    ]),
   );
-  const presetRows = (await Promise.all(types.map((t) => listPresets(user, t.key as DocumentTypeKey)))).flat();
-  const presets: GeneratorPreset[] = presetRows.map((p) => ({ id: p.id, name: p.name, type: p.documentType, template: p.template, fields: p.fields as string[], shared: p.ownerId === null }));
+  const presetRows = (
+    await Promise.all(
+      types.map((t) => listPresets(user, t.key as DocumentTypeKey)),
+    )
+  ).flat();
+  const presets: GeneratorPreset[] = presetRows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    type: p.documentType,
+    template: p.template,
+    fields: p.fields as string[],
+    shared: p.ownerId === null,
+  }));
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6">
+          <div>
+            <p className="font-medium">Food menu</p>
+            <p className="text-sm text-text-muted">
+              Edited under Food menu in the sidebar.
+            </p>
+          </div>
+          <Button asChild variant="outline">
+            <a href={FOOD_MENU_PDF_URL}>
+              <Download aria-hidden="true" /> Download food menu
+            </a>
+          </Button>
+        </CardContent>
+      </Card>
       <Card>
         <CardContent className="pt-6">
           <DocumentGenerator
@@ -76,7 +216,11 @@ export async function DocumentsTab({ booking, user, initialType, initialSource }
             types={types}
             fields={fields}
             presets={presets}
-            initialType={initialType ?? types[0].key}
+            initialType={
+              initialType && types.some((t) => t.key === initialType)
+                ? initialType
+                : types[0].key
+            }
             initialSource={initialSource}
             pdfAvailable={pdfAvailable()}
             canSharePresets={can(user, "documents.templates.manage")}
@@ -84,19 +228,39 @@ export async function DocumentsTab({ booking, user, initialType, initialSource }
         </CardContent>
       </Card>
       <Card>
-        <CardHeader><CardTitle>Generated documents</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>
+            <SectionTitle icon={Files} tone="blue">
+              Generated documents
+            </SectionTitle>
+          </CardTitle>
+        </CardHeader>
         <CardContent>
           {history.length ? (
             <ul className="divide-y divide-border text-sm">
               {history.map((d) => (
-                <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
+                <li
+                  key={d.id}
+                  className="flex flex-wrap items-center justify-between gap-3 py-2"
+                >
                   <div>
-                    <p className="font-medium">{DOCUMENT_TYPES[d.documentType as DocumentTypeKey]?.title ?? d.documentType} · {d.reference}</p>
-                    <p className="text-xs text-text-muted">v{d.version} · {d.template} · {formatIST(d.createdAt)} · {d.createdByName} · {(d.fields as string[]).length} fields</p>
+                    <p className="font-medium">
+                      {DOCUMENT_TYPES[d.documentType as DocumentTypeKey]
+                        ?.title ?? d.documentType}{" "}
+                      · {d.reference}
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      v{d.version} · {d.template} · {formatIST(d.createdAt)} ·{" "}
+                      {d.createdByName} · {(d.fields as string[]).length} fields
+                    </p>
                   </div>
                   {d.stored ? (
-                    <a href={`/api/documents/${d.id}`} className="inline-flex items-center gap-1 text-primary hover:underline">
-                      <Download className="size-4" aria-hidden="true" /> {d.format.toUpperCase()}
+                    <a
+                      href={`/api/documents/${d.id}`}
+                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                    >
+                      <Download className="size-4" aria-hidden="true" />{" "}
+                      {d.format.toUpperCase()}
                     </a>
                   ) : (
                     <Badge variant="outline">copy removed after 7 days</Badge>

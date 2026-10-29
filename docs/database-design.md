@@ -35,7 +35,6 @@ flowchart TB
     Customer --- ConsentRecord
   end
   subgraph Venue
-    Hall --- HallLayoutCapacity
     Hall --- HallComposition
     Hall --- SlotDefinition
   end
@@ -65,7 +64,7 @@ flowchart TB
 | Entity | Key fields | Notes |
 |---|---|---|
 | `User` | name, email (unique), active, lastLoginAt | Managed with Better Auth tables `Session`, `Account`, `Verification`, `TwoFactor`. |
-| `Role` | key, name, system | Super Admin, Admin, Manager, Sales, Accounts, Event Operations, Kitchen. |
+| `Role` | key, name, system | Super Admin, Admin, Manager, Sales, Accounts, Event Operations. (Kitchen was removed on 26 Oct 2026: no in-house kitchen.) |
 | `Permission` | key (e.g. `leads.read`), description | Seeded from code; the code registry is the source of truth. |
 | `RolePermission`, `UserRole` | join tables | Changes are audit-logged. |
 | `SiteSetting` | key, value Json, updatedBy | Typed sections validated by Zod: business, tax, numbering, booking policy, notifications, SEO, retention. |
@@ -83,14 +82,14 @@ flowchart TB
 |---|---|
 | `MediaAsset` | provider (cloudinary), publicId, kind (image/video/pdf), width, height, alt (Localized, en required), caption, photographerCredit, usagePermission, group, uploadedBy |
 | `WebsitePage` | slug, title (Localized), seo Json (meta title/description per locale, ogImageId), published, publishedAt |
-| `PageSection` | pageId, type (hero, intro, halls, catering, decor, packages, gallery, stories, dates, blog, cta, map), sortOrder, visible, content Json |
+| `PageSection` | pageId, type (hero, intro, halls, catering, decor, gallery, stories, dates, blog, cta, map), sortOrder, visible, content Json |
 | `NavigationItem` | location (header/footer), label (Localized), href, sortOrder |
 | `GalleryCategory`, `GalleryItem` | category, mediaAssetId, featured, sortOrder |
 | `DecorTheme` | name, description, mediaAssetIds, published |
-| `AuspiciousDate` | date, label (Localized), note, season, published |
+| `AuspiciousDate` | Removed from the app 28 Oct 2026 (owner request); table kept until the owner approves dropping it. |
 | `OfferPage` | slug, campaignKey, content Json, seo Json, startsAt, endsAt, published |
 | `RealWeddingStory` | coupleNames, consentGiven, consentDate, consentRecordId, eventType, hallId, story (Localized), mediaAssetIds, published |
-| `BlogPost`, `BlogCategory`, `BlogTag` | slug, title, excerpt, body (ProseMirror Json), status (DRAFT/SCHEDULED/PUBLISHED/UNPUBLISHED), publishAt, authorId, featuredImageId, seo Json |
+| `BlogPost`, `BlogCategory` | slug, title / summary / content (Localized, content in the same plain-text Markdown subset as pages), categoryKey, tags Json (strings), author, published, publishedAt (first publication, kept on re-save), metaTitle / metaDescription (Localized) | Cover photo = `MediaPlacement` with ownerType `blog_post` (`featuredImageUrl` unused). Categories seeded from `DEFAULT_BLOG_CATEGORIES`. No separate tag table. |
 | `Redirect` | fromPath (unique), toPath, permanent |
 | `ConversionEvent` | type, page, locale, utm Json, at | No personal data. |
 
@@ -109,7 +108,7 @@ Duplicate enquiry rule: same normalized phone with an open lead created within t
 
 | Entity | Key fields | Notes |
 |---|---|---|
-| `Customer` | reference, fullName, mobile (E.164, indexed), whatsapp, email, gstin, companyName, maritalStatus, dateOfBirth, anniversary, spouseName, categoryId, professionId, professionOther, state, city, locality, address, photoAssetId, notes, deletedAt, anonymizedAt | Age is computed, never stored. DOB/anniversary collected only if greetings are used. |
+| `Customer` | reference, fullName, mobile (E.164, indexed), whatsapp, email, gstin, companyName, maritalStatus, dateOfBirth, approxBirthYear, anniversary, spouseName, categoryKey, professionKeys[], professionOther, state, city, locality, address, mapsUrl, photoKey (private store: Cloudinary authenticated WebP, or the database), notes, deletedAt, anonymizedAt | Age is computed, never stored: from DOB, else approximately from approxBirthYear. DOB/anniversary collected only if greetings are used. |
 | `CustomerDocument` | ownerType (CUSTOMER/PARTY), ownerId, category (PAN, AADHAAR_MASKED, OTHER), storageKey, mimeType, sizeBytes, sha256, uploadedBy, purpose | File in the private document store (ADR-07). No Aadhaar number columns at all. |
 | `CustomerMergeReview` | primaryId, duplicateId, status, decidedBy, decidedAt | Merge is a reviewed action, never automatic. |
 
@@ -117,10 +116,9 @@ Duplicate enquiry rule: same normalized phone with an open lead created within t
 
 | Entity | Key fields | Notes |
 |---|---|---|
-| `Hall` | name (Localized), slug, description (Localized), areaSqFt?, ceilingHeightFt?, facilities Json, floorPlanAssetId, tourUrl, eventTypeIds, isComposite, setupBufferMinutes, teardownBufferMinutes, active, sortOrder | Fact fields are nullable: unknown is shown as "coming soon", never as 0. |
-| `HallLayoutCapacity` | hallId, layout (THEATRE, BANQUET, FLOATING, CLUSTER), minGuests?, maxGuests? | |
+| `Hall` | name (Localized), slug, description (Localized), published, isComposite, setupBufferMinutes, teardownBufferMinutes, active, sortOrder; photos are `MediaPlacement` rows (ownerType `hall`) | Area, ceiling, facilities, capacities, floor plan, tour, event types, summary and SEO were dropped on 28 Oct 2026 (owner request): a venue is a title, a description and photos. |
 | `HallComposition` | compositeHallId, memberHallId | "Hall A + Hall B" is a composite hall made of two physical halls. |
-| `SlotDefinition` | hallId (nullable = all halls), name (Localized), startTime, endTime, crossesMidnight (derived), active | Times are local `Asia/Kolkata` wall-clock times. |
+| `SlotDefinition` | hallId (nullable = all halls), name (Localized), startTime, endTime, crossesMidnight (derived), active | **Unused since 26 Oct 2026** (all inactive): functions have typed times. Kept for history; drop only with the owner's go-ahead. |
 
 ### 3.6 Bookings (Phase 3)
 
@@ -140,14 +138,13 @@ Booking internal states: `ENQUIRY_HOLD → TENTATIVE → QUOTATION_SENT → CONF
 | Entity | Key fields | Notes |
 |---|---|---|
 | `Service` | name, categoryId, taxCategoryId, defaultUnit, defaultPrice?, active | No room services. |
-| `Package`, `PackageItem` | name, description, eventTypeIds, terms, defaultPrice? / perPlateRate?, minPlates, publicPrice (bool), active | |
 | `Menu`, `MenuCourse`, `MenuItem` | category (Veg/Jain/Non-veg/custom), course, item name (Localized), dietary tags, publicVisible | Same data powers the website and the CRM. |
-| `MenuPackage` | menuId, perPlateRate, selectionRules Json (e.g. `{ course: "starters", choose: 3, from: [ids] }`), minPlates | |
-| `PricingRule` | kind (SEASON, WEEKDAY, DATE), dateRange / weekdays / dates, adjustment (percent or amount), appliesTo | Applied only when a new quotation version is drafted. |
+| `MenuPackage` | menuId, perPlateRate, selectionRules Json (e.g. `{ course: "starters", choose: 3, from: [ids] }`), minPlates | `taxCategoryId` unused (no GST since 26 Oct 2026). |
+| `PricingRule` | kind (SEASON, WEEKDAY, DATE), dateRange / weekdays / dates, adjustment (percent or amount), appliesTo | **Unused since 26 Oct 2026** (feature removed at the owner's request). The empty table is kept; drop it only with the owner's go-ahead. |
 | `CancellationPolicy` | name, slabs Json `[{ daysBeforeEventMin, refundPercent }]`, active | Snapshotted onto the booking at confirmation. |
 | `SubEventMenuSelection` | subEventId, menuPackageId, snapshot Json (items, rate), guaranteedPlates, actualPlates?, lockedAt? | |
 | `QuotationVersion` | bookingId, versionNumber, status (DRAFT, SENT, ACCEPTED, SUPERSEDED), snapshot Json (terms, tax config), subtotal, discountTotal, taxTotal, grandTotal, acceptedAt, acceptedById, createdById | Immutable once SENT; editing creates the next version. Unique `(bookingId, versionNumber)`. |
-| `QuotationLine` | versionId, kind (PACKAGE, PLATES, SERVICE, CUSTOM, EXTRA_PLATES), description, sacCode, quantity, unit, unitPrice, discount, taxRatePercent, taxableValue, lineTotal, subEventId? | |
+| `QuotationLine` | versionId, kind (PLATES, SERVICE, CUSTOM, EXTRA_PLATES; PACKAGE only on lines written before packages were removed), description, sacCode, quantity, unit, unitPrice, discount, taxRatePercent, taxableValue, lineTotal, subEventId? | |
 
 ### 3.8 Money (Phase 3)
 
@@ -174,8 +171,10 @@ Outstanding balance (computed, never stored as truth):
 | `Vendor`, `VendorAssignment` | 4 | name, contact, categoryId, partner, notes / bookingId, subEventId |
 | `Expense` | 4 | bookingId, categoryId, vendorId, amount, incurredOn, paymentStatus, notes |
 | `Notification` | 2 | userId, kind, title, body, link, readAt |
-| `Outbox` | 2 | channel, template, to (masked in UI), payload Json, purpose, status (PENDING, SENT, FAILED, NOT_SENT_NO_PROVIDER, SKIPPED_NO_CONSENT), attempts, nextAttemptAt, providerMessageId |
-| `DataSubjectRequest` | 4 | subjectType, subjectId, kind (ACCESS, CORRECTION, DELETION), status, notes, handledById |
+| `Outbox` | 2, WhatsApp | The message log. channel, template, to (masked in UI), payload Json (WhatsApp: templateName, templateRef, variables, filled text), purpose, status (PENDING, SENT, DELIVERED, READ, FAILED, NOT_SENT_NO_PROVIDER, SKIPPED_NO_CONSENT), attempts, nextAttemptAt, provider (meta/twilio/resend), providerMessageId, sentAt, deliveredAt, readAt, failedAt (from webhooks), campaignId, createdById, relatedType/relatedId (customer/lead) |
+| `MessageCampaign` | WhatsApp | name, provider, templateName, templateRef (Meta language or Twilio Content SID), templateCategory, variables Json, audience Json (filters used), recipientCount, skippedCount, createdById |
+| `InboundMessage` | WhatsApp | provider, fromAddress (E.164), body, providerMessageId (unique, so webhook retries are ignored), relatedType/relatedId (matched by phone), receivedAt. A "STOP" reply adds a `marketing_whatsapp = false` consent row (source `whatsapp_reply_stop`). |
+| `DataSubjectRequest` | 4 (unused since 27 Oct 2026) | subjectType, subjectId, kind (ACCESS, CORRECTION, DELETION), status, notes, handledById. The screen was removed; rows are kept as history. |
 
 ### 3.10 Phase 3 as built (differences from the draft above)
 
@@ -183,11 +182,11 @@ Outstanding balance (computed, never stored as truth):
 |---|---|
 | Tax | `TaxCategory` (name, SAC) + `TaxRate` (rate, effectiveFrom), so a rate change is a new row and issued documents keep their rate. |
 | Services | The catalogue table is `ServiceItem` (`Service` clashes with the website's service pages). |
-| Packages | CRM pricing columns on the existing `Package` (`crmPrice`, `perPlateRate`, `minPlates`, `taxCategoryId`, `active`); inclusions stay text, no `PackageItem` yet. |
+| Packages | Removed on 28 Oct 2026 (owner request): the `package` table and `booking.packageId` were dropped. Old quotation lines of kind PACKAGE keep their copied text and amounts. |
 | Menus | `MenuPackage.selectionRules` = `[{ course, choose }]` over the menu's items; courses are a fixed list, no `MenuCourse` table. |
 | Private files | `PrivateBlob(key, data bytea)` holds file bytes (ADR-07). `CustomerDocument` has `customerId` and an optional `partyId` for bride/groom documents. |
 | After the event | `PostEventCharge` (extra plates, extra hours, other) is append-only; an invoice line points at it, so each charge is invoiced once. |
-| Bookings | `status` is an enum with labels from the `booking_status` list. Sub-events store `startsAt/endsAt` from a slot or custom times. `Booking.cancellation` (JSON) keeps the computed and the agreed refund. |
+| Bookings | `status` is an enum with labels from the `booking_status` list. Sub-events store `startsAt/endsAt` from the times staff type (no slots since 26 Oct 2026; `slotDefinitionId` is always null for new functions). `Booking.cancellation` (JSON) keeps the computed and the agreed refund. |
 | Documents | `DocumentPreset` and `GeneratedDocument` as designed; templates are code (`src/lib/pdf`), so there is no `DocumentTemplate` table. |
 | Numbers | Customer `SP-C-YYYY-#####`; receipt `SP-R-YYYY-YY-#####` per financial year; GST invoice `PREFIX/YY-YY/####` and credit note `PREFIX/YY-YY/####` (at most 16 characters), all from `number_sequence`. |
 
@@ -237,7 +236,8 @@ Trigger on `LedgerEntry`, `DepositEntry`, `Invoice`, `InvoiceLine`, `CreditNote`
 - `SlotOccupancy(physicalHallId, effectiveStartsAt)` (plus the GiST index from the constraint).
 - `SlotReservation(state, holdExpiresAt)` for the expiry job.
 - `LedgerEntry(bookingId, occurredOn)`, `Invoice(financialYear, number)`.
-- `Outbox(status, nextAttemptAt)`.
+- `Outbox(status, nextAttemptAt)`, `Outbox(channel, createdAt)`, `Outbox(campaignId)`, `Outbox(providerMessageId)`.
+- WhatsApp provider keys live in `site_setting` row `whatsapp`, secrets encrypted with AES-256-GCM (key derived from `BETTER_AUTH_SECRET`; rotating it means re-entering the keys).
 
 ## 6. Data lifecycle
 

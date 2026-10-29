@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { applyPricingRules, type PricingRuleInput } from "@/lib/booking/pricing";
 import {
   canTransition,
   findConflicts,
@@ -38,8 +37,12 @@ describe("booking state machine", () => {
     expect(canTransition("QUOTATION_SENT", "CONFIRMED")).toBe(true);
     expect(canTransition("CONFIRMED", "CANCELLED")).toBe(true);
     expect(canTransition("COMPLETED", "CANCELLED")).toBe(false);
+    expect(canTransition("COMPLETED", "CONFIRMED")).toBe(true);
+    expect(canTransition("COMPLETED", "TENTATIVE")).toBe(true);
+    expect(canTransition("IN_PROGRESS", "TENTATIVE")).toBe(true);
     expect(canTransition("CANCELLED", "CONFIRMED")).toBe(false);
-    expect(canTransition("CONFIRMED", "TENTATIVE")).toBe(false);
+    expect(canTransition("CONFIRMED", "TENTATIVE")).toBe(true);
+    expect(canTransition("CONFIRMED", "ENQUIRY_HOLD")).toBe(false);
   });
 
   it("maps booking status to reservation state; holds are never confirmed", () => {
@@ -125,27 +128,6 @@ describe("plates and guest counts", () => {
   it("marriage events show the bride and groom section", () => {
     expect(isMarriageEvent("wedding")).toBe(true);
     expect(isMarriageEvent("corporate")).toBe(false);
-  });
-});
-
-describe("pricing rules", () => {
-  const rules: PricingRuleInput[] = [
-    { id: "peak", name: "Peak season", kind: "SEASON", startDate: "2026-11-15", endDate: "2027-02-15", weekdays: null, dates: null, adjustmentType: "PERCENT", adjustmentValue: "10", appliesTo: "ALL", active: true },
-    { id: "weekend", name: "Weekend", kind: "WEEKDAY", startDate: null, endDate: null, weekdays: [0, 6], dates: null, adjustmentType: "AMOUNT", adjustmentValue: "50", appliesTo: "PLATES", active: true },
-    { id: "muhurat", name: "Muhurat date", kind: "DATE", startDate: null, endDate: null, weekdays: null, dates: ["2026-12-12"], adjustmentType: "PERCENT", adjustmentValue: "5", appliesTo: "SERVICE", active: true },
-    { id: "off", name: "Inactive", kind: "WEEKDAY", startDate: null, endDate: null, weekdays: [0, 1, 2, 3, 4, 5, 6], dates: null, adjustmentType: "PERCENT", adjustmentValue: "-50", appliesTo: "ALL", active: false },
-  ];
-
-  it("applies matching rules in order", () => {
-    // 2026-12-12 is a Saturday in peak season.
-    const plates = applyPricingRules("800", "2026-12-12", "PLATES", rules);
-    expect(plates.price.toFixed(2)).toBe("930.00");
-    expect(plates.applied.map((r) => r.id)).toEqual(["peak", "weekend"]);
-    expect(applyPricingRules("1000", "2026-12-12", "SERVICE", rules).price.toFixed(2)).toBe("1155.00");
-  });
-
-  it("leaves prices alone outside the rules", () => {
-    expect(applyPricingRules("800", "2026-07-15", "PLATES", rules).price.toFixed(2)).toBe("800.00");
   });
 });
 

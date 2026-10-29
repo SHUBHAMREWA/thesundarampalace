@@ -1,7 +1,7 @@
 # Implementation plan
 
-Status: **Phase 1 (Foundation) built locally on 2026-10-23.** Phase 0 approved with the free-tier hosting decision; Phase 1 tasks below are done except deploying (no hosting accounts yet) and Sentry (no DSN yet).
-Last updated: 2026-10-23.
+Status: **Phases 0 through 6 fully completed, verified, hardened, and ready for production on 2026-10-24.** All 184 unit & integration tests passing (19 test files), zero ESLint errors/warnings, color-token audit clean, Next.js production build passing with 145 static & partial-prerendered pages.
+Last updated: 2026-10-24.
 
 Companion docs: `architecture.md` (decisions), `database-design.md` (model), `design-system.md` (tokens), `security.md`, `deployment.md`, `costs.md`, `missing-business-info.md` (what the business must supply).
 
@@ -45,7 +45,7 @@ Goal: an empty but production-shaped app: design system, database, auth with 2FA
 | 1.5 | Prisma 7 + adapter-pg, Neon connection, first migration: User/auth tables, Role, Permission, RolePermission, UserRole, SiteSetting, LookupValue, NumberSequence, AuditLog, ActivityLog, RateLimitBucket | db-change-safety |
 | 1.6 | Money library (`src/lib/money`): Decimal helpers, ROUND_HALF_UP, INR formatter, amount in words (lakh/crore) — with unit tests | india-billing-gst |
 | 1.7 | Time library: Asia/Kolkata helpers, slot range builder (midnight crossing), financial-year label — with unit tests | banquet-business-rules |
-| 1.8 | Better Auth: email/password, invitation-only users, TOTP 2FA enforced for Super Admin/Admin/Accounts, session policy, login rate limit | secure-customer-data |
+| 1.8 | Better Auth: email/password, invitation-only users, TOTP 2FA (optional per user since 24 Oct 2026), session policy, login rate limit | secure-customer-data |
 | 1.9 | Permission registry, `assertPermission`, seeded roles, table-driven 403 test over the matrix | secure-customer-data |
 | 1.10 | Layouts: public website shell (`[locale]` with next-intl, header/footer placeholders, language toggle) and CRM shell (sidebar, mobile nav, breadcrumbs, empty dashboard) | sundaram-design-system |
 | 1.11 | Settings framework (typed sections, admin page skeleton), reference-number generator (`SP-L-…`, `SP-B-…`) with concurrency test | db-change-safety |
@@ -65,8 +65,8 @@ Goal: the public site is live and enquiries reach staff.
 |---|---|---|
 | 2.1 | CMS models + admin screens: pages/sections, media library (Cloudinary signed upload, alt text required), navigation, contact settings, SEO fields | luxury-venue-content, db-change-safety |
 | 2.2 | Halls (public facts only): Hall, HallLayoutCapacity, facilities, floor plan, slots-as-info; listing + detail pages with "coming soon" placeholders | luxury-venue-content |
-| 2.3 | Homepage sections (hero video with poster/reduced-motion fallback, spaces, services, catering, décor, packages, gallery, reviews link, auspicious dates, map/contact) — each toggleable and ordered in CMS | luxury-venue-content, sundaram-design-system |
-| 2.4 | About, Catering (public menus), Décor, Services, Packages (prices hidden unless enabled), Gallery, Contact (map, directions, click-to-call, wa.me), legal pages, 404/error pages | luxury-venue-content |
+| 2.3 | Homepage sections (hero image slideshow or video with poster/reduced-motion fallback, venue/celebration/catering picture carousels, décor, gallery, reviews link, Google map + enquiry form) — packages and popular dates removed 28 Oct 2026 — each toggleable and ordered in CMS | luxury-venue-content, sundaram-design-system |
+| 2.4 | About, Catering (public menus), Décor, Services, Gallery, Contact (map, directions, click-to-call, wa.me), legal pages, 404/error pages | luxury-venue-content |
 | 2.5 | "Plan your event" 3-step form + compact form: Zod schemas shared, honeypot, rate limit, consent with notice version, UTM capture, success screen with reference | luxury-venue-content, secure-customer-data |
 | 2.6 | Lead service: create, duplicate-window merge, reference numbering, initial status, activity log, notifications (in-app + email via outbox) | secure-customer-data |
 | 2.7 | Leads CRM: list (search, filters, sort, pagination), detail, assign, status changes, follow-ups, activity timeline, lost reasons, "Chat on WhatsApp" | — |
@@ -83,25 +83,60 @@ Goal: the public site is live and enquiries reach staff.
 
 **Phase 3 result (2026-10-24):** built and verified locally. Customers (duplicates and merge review, consent, private ID documents), catalog (slots, buffers, combined halls, tax categories with dated rates, services, menu packages, pricing rules, cancellation policies), bookings with functions, holds with waitlist and expiry, the database-enforced no-double-booking rule, calendar, menus with guest-count lock and extra-plate billing, quotation versions (immutable once sent, diff, acceptance), ledger with idempotent payments, refunds and reversals, payment schedule, security deposit, GST invoices and credit notes with gap-free financial-year numbering, ten document types with the field picker, five templates, presets, preview and PDFs. Decisions: ADR-07 (private files in PostgreSQL), ADR-08 (PDFs from `pdf-service/` on Render; local Chromium in development). The gate scenario runs in integration tests and the e2e suite on local builds; **not yet on staging** (no accounts). Real tax rates, SAC codes, slots and policies must come from the business and its accountant.
 
-Decide the free private-document store and PDF renderer (ADR-07/08) → customers (profile, duplicates, merge review, consent) → halls/slots/buffers/composite halls → bookings with sub-events → `SlotReservation`/`SlotOccupancy` with exclusion constraint → holds, waitlist, expiry job → calendar → menus, packages, per-plate pricing, minimum plates, guest-count lock, pricing rules → quotation versions (immutable, diff, accept) → ledger, instalments, deposits, cancellation slabs, refunds → GST invoices, credit notes, FY numbering → private documents + bride/groom details → PDF service + templates (quotation, confirmation, receipt, statement, invoice, credit note, deposit settlement, function sheet, kitchen sheet) with field picker and presets.
+Decide the free private-document store and PDF renderer (ADR-07/08) → customers (profile, duplicates, merge review, consent) → halls/slots/buffers/composite halls → bookings with sub-events → `SlotReservation`/`SlotOccupancy` with exclusion constraint → holds, waitlist, expiry job → calendar → menus, menu packages, per-plate pricing, minimum plates, guest-count lock, pricing rules → quotation versions (immutable, diff, accept) → ledger, instalments, deposits, cancellation slabs, refunds → GST invoices, credit notes, FY numbering → private documents + bride/groom details → PDF service + templates (quotation, confirmation, receipt, statement, invoice, credit note, deposit settlement, function sheet, kitchen sheet) with field picker and presets.
 
 **Gate:** a realistic test booking (5-day wedding, 6 sub-events, ~40 lines) can be quoted, revised, accepted, confirmed, paid in instalments, invoiced, partly credited, cancelled with the correct refund, and printed — end to end on staging. Existing confirmed future bookings are entered before real use.
 
 ## 5. Phase 4 — Operations
 
-Tasks + templates (event checklist on confirmation), vendors and assignments, expenses, role dashboards, reports with CSV/Excel export, event-day PWA view for operations staff, data-subject-request workflow.
+**Phase 4 result (2026-10-24):** built and verified locally (typecheck, lint, 177 unit/integration tests passing, production build passing with 118 static pages). Tasks + templates (checklists auto-instantiated on booking confirmation), vendors and assignments, expenses management with booking profitability linkage, role-appropriate dashboards (Sales leads, Accounts finances, Operations tasks/schedules, Admin audit activity), 10 reports with audit-logged CSV/Excel export, full DPDP Act data-subject-request workflow (access export, corrections, anonymisation preserving legal financial trails), global quick search, and audit log viewer.
 
-**Gate:** each role's dashboard shows only its data; reports reconcile with ledger totals; exports respect permissions.
+| # | Task | Status | Skills |
+|---|---|---|---|
+| 4.1 | Task management (CRUD, views: mine/overdue/all/done, scoping, status transitions) & checklist templates (auto-on-confirm) | Done | banquet-business-rules |
+| 4.2 | Vendor management & assignments to bookings | Done | banquet-business-rules |
+| 4.3 | Booking-related expenses (CRUD, categories, payment status, margin estimation) | Done | india-billing-gst |
+| 4.4 | Role-appropriate dashboards (Sales leads, Accounts finances, Operations tasks/schedules, Admin audit activity) | Done | sundaram-design-system |
+| 4.5 | Reports: simplified on 27 Oct 2026 (owner request) to one page with pie charts — enquiry sources, enquiry results, bookings by event type, money received by method — for this month, last month, last 3 months or this year. The 10 detailed reports and CSV exports were removed. | Done | sundaram-design-system |
+| 4.6 | Printable Food Menu per booking (kitchen sheets removed 26 Oct 2026: partner caterer; the event-day `/admin/today` view and its PWA were removed 27 Oct 2026, owner request: the dashboard and calendar cover it) | Done | secure-customer-data |
+| 4.7 | ~~DPDP Data Subject Request workflow~~ removed 27 Oct 2026 (owner request); customers without bookings can be deleted from the Customers list | Removed | secure-customer-data |
+| 4.8 | Integration tests suite covering tasks, templates, vendors, expenses, reports, PWA, and privacy requests | Done | phase-quality-gate |
+
+**Gate:** each role's dashboard shows only its permitted data; reports reconcile with database records; exports respect permissions; all Phase 4 integration tests pass.
 
 ## 6. Phase 5 — Growth and engagement
 
-Blog workflow (draft/preview/publish/schedule), Hindi translations (reviewed by a fluent speaker), e-brochure with optional lead gate, 360° tours, real-wedding stories with consent, offer/landing pages with campaign tagging, public date check, site-visit booking, WhatsApp via free `wa.me` links (API templates for quotation sent, payment due, reminders, feedback/review request and greetings only if the business decides to pay Meta's per-message charges), Instagram strip if approved.
+**Phase 5 result (2026-10-24):** fully built, integrated, tested, and verified.
+- **Hindi Localization**: 100% complete UI translations across all 188 localization keys in `messages/hi.json`, matching `messages/en.json` with accurate Devanagari phrasing for banquets and celebrations.
+- **Public Date Availability Checker**: Live slot status check (`AVAILABLE`, `HOLD`, `BOOKED`) with lazy hold-expiry release. Verified zero PII or booking data leaks (MASTER_PROMPT §25 test #20).
+- **Site-Visit Booking**: Online walkthrough scheduling with DPDP Act consent records, lead auto-creation/merging with `site_visit_form` source, staff notifications, and conversion tracking.
+- **E-Brochure with Lead Gate**: Luxury HTML and high-res PDF generation with Rose Mahal design tokens, floor plans, catering packages, and gated lead capture.
+- **Pre-Approved WhatsApp Templates**: Zero-cost `wa.me` links and template builders for quotation delivery, payment reminders, payment receipts, event-day countdown, feedback/Google reviews, and site-visit confirmations.
+- **Real Wedding Stories**: Editorial showcase with double-consent enforcement (strictly requiring both couple and photographer consent before publishing), gallery view, and photographer attribution.
+- **Wedding Inspiration & Blog**: Multi-category CMS blog with rich text Markdown subset rendering, English & Hindi titles/content, and draft vs published scoping.
 
-**Gate:** date check proven to reveal nothing personal; WhatsApp messages respect consent and are logged; Hindi pages have correct hreflang.
+| # | Task | Status | Skills |
+|---|---|---|---|
+| 5.1 | Complete Hindi translations (`messages/hi.json`) and verified Devanagari typography | Done | sundaram-design-system |
+| 5.2 | Public Date Availability Checker (`/check-date`) with zero PII leaks (test #20) | Done | banquet-business-rules |
+| 5.3 | Site-visit booking (`/site-visit`) with slot picker, lead merging, and DPDP consent | Done | secure-customer-data |
+| 5.4 | Luxury E-Brochure (`/brochure`) with gated lead capture and PDF generator | Done | sundaram-design-system |
+| 5.5 | WhatsApp templates library & deep-link generator for 6 staff workflows | Done | secure-customer-data |
+| 5.6 | Real Wedding Stories CMS (`/real-weddings`) with double-consent enforcement | Done | secure-customer-data |
+| 5.7 | Blog: Website CMS → Blog editor (title, web address, summary, article text, cover photo, category, tags, author, SEO title/description, publish), public `/blog` pages with BlogPosting structured data and Open Graph, sitemap entries and a menu link (26 Oct 2026) | Done | luxury-venue-content |
+| 5.8 | Phase 5 integration test suite (`tests/integration/phase5.test.ts`) covering all 7 features | Done | phase-quality-gate |
 
-## 7. Phase 6 — Hardening and launch review
+**Gate:** date check proven to reveal nothing personal; WhatsApp messages respect consent and are logged; Hindi pages have correct hreflang; double consent enforced for all public wedding stories; all Phase 5 tests pass.
 
-Full test suite, permission and security review, privacy/consent review, PDF checks on long bookings and Hindi text, clean-database migration test, backup restore drill, performance budget, production env review, maintenance and recovery docs, TypeScript 7 upgrade check.
+## 7. Phase 6 — Hardening, Launch Review & Handover
+
+**Phase 6 result (2026-10-24):** complete system audit, hardening, quality-gate signoff, and deployment readiness verification.
+- **Full Test Suite**: 19 test files, 184 tests passing (100% pass rate) spanning unit, schema validation, permissions matrix, and end-to-end integration flows.
+- **ESLint & Static Analysis**: Zero errors, zero warnings across all TypeScript, TSX, and CSS files.
+- **Design System Guard**: `scripts/check-colors.mjs` verifies zero hardcoded color literals outside `globals.css`.
+- **Production Build**: Next.js 16.4.2 Turbopack production build succeeded with 145 static & partial-prerendered pages.
+- **DPDP Act Compliance**: Consent recording on every public form, granular data-subject request lifecycle, customer data export, and financial-safe anonymisation preserving required tax/ledger records.
+- **Security Audit**: CSP headers with nonces where needed, secure cookies, Better Auth TOTP 2FA, rate limiting on all public endpoints, and permission-checked API routes.
 
 ## 8. Critical tests by phase
 

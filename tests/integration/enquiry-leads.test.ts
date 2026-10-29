@@ -183,8 +183,8 @@ describeDb("enquiries become leads (tests #1, #3, #4)", () => {
     expect(kinds).toEqual(expect.arrayContaining(["CREATED", "ASSIGNED", "STATUS_CHANGE", "CALL"]));
 
     // A role without leads.edit cannot change anything.
-    const kitchen = actorWith("kitchen-user", ["kitchen.read"]);
-    await expect(addLeadActivity(kitchen, created.leadId, { kind: "NOTE", note: "x" })).rejects.toBeInstanceOf(ForbiddenError);
+    const printer = actorWith("menu-only-user", ["pdf.menu"]);
+    await expect(addLeadActivity(printer, created.leadId, { kind: "NOTE", note: "x" })).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it("stores follow-up times entered in India time as UTC", async () => {

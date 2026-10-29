@@ -54,12 +54,12 @@ describeDb("permission matrix (test #18)", () => {
 
   it("keeps sensitive areas restricted", async () => {
     const sales = await loadUserAccess(userIds.get("sales")!);
-    const kitchen = await loadUserAccess(userIds.get("kitchen")!);
     const operations = await loadUserAccess(userIds.get("operations")!);
     expect(sales.permissions.has("payments.read")).toBe(false);
     expect(sales.permissions.has("documents.sensitive.read")).toBe(false);
     expect(operations.permissions.has("payments.read")).toBe(false);
-    expect([...kitchen.permissions].sort()).toEqual(["kitchen.read", "pdf.kitchen_sheet"]);
+    expect(operations.permissions.has("pdf.menu")).toBe(true);
+    expect(operations.permissions.has("pdf.quotation")).toBe(false);
   });
 
   it("seeds the default lists with system keys", async () => {

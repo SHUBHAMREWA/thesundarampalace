@@ -64,7 +64,7 @@ const accounts = () => actorFor(fx.users.accounts, "accounts");
 async function confirmedBooking(opts: { date?: string; hallId?: string; amount?: string; inclusive?: boolean } = {}) {
   const customer = await makeCustomer(P);
   const booking = await createBooking(sales(), createBookingSchema.parse({ customerId: customer.id, mainEventName: "Sample wedding", mainEventTypeKey: "wedding", initialStatus: "TENTATIVE" }));
-  await addSubEvent(sales(), booking.id, subEventSchema.parse({ name: "Wedding", eventTypeKey: "wedding", date: opts.date ?? futureDate(90 + 2 * nextDay++), hallId: opts.hallId ?? fx.hallA.id, slotDefinitionId: fx.evening.id }));
+  await addSubEvent(sales(), booking.id, subEventSchema.parse({ name: "Wedding", eventTypeKey: "wedding", date: opts.date ?? futureDate(90 + 2 * nextDay++), hallId: opts.hallId ?? fx.hallA.id, ...fx.evening }));
   const draft = await createDraft(sales(), booking.id, null);
   if (opts.inclusive) await updateDraftOptions(sales(), draft.id, draftOptionsSchema.parse({ pricesIncludeTax: "on", placeOfSupplyStateCode: "09", bookingDiscount: "0" }));
   await addLine(sales(), draft.id, lineSchema.parse({ kind: "SERVICE", description: "Sample hall rental", unit: "event", quantity: "1", unitPrice: opts.amount ?? "100000", discount: "0", taxCategoryId: fx.taxHall.id }));
@@ -132,23 +132,24 @@ describeDb("quotations, ledger, invoices and credit notes (Phase 3)", () => {
     expect((await db.booking.findUniqueOrThrow({ where: { id: booking.id } })).acceptedQuotationId).toBe(v2.id);
   });
 
-  it("fills plate lines from menus with pricing rules applied (new quotations only)", async () => {
+  it("fills plate lines from menus without GST", async () => {
     const customer = await makeCustomer(P);
     const booking = await createBooking(sales(), createBookingSchema.parse({ customerId: customer.id, mainEventName: "Sample sangeet", mainEventTypeKey: "sangeet", initialStatus: "TENTATIVE" }));
     const date = futureDate(120);
-    const { subEvent } = await addSubEvent(sales(), booking.id, subEventSchema.parse({ name: "Sangeet", eventTypeKey: "sangeet", date, hallId: fx.hallB.id, slotDefinitionId: fx.evening.id }));
+    const { subEvent } = await addSubEvent(sales(), booking.id, subEventSchema.parse({ name: "Sangeet", eventTypeKey: "sangeet", date, hallId: fx.hallB.id, ...fx.evening }));
     const starters = fx.menu.items.filter((i) => i.course === "starters").map((i) => i.id).slice(0, 2);
     await setMenuSelection(sales(), subEvent.id, menuSelectionSchema.parse({ menuPackageId: fx.menuPackage.id, itemIds: starters, guaranteedPlates: "250" }));
-    const rule = await db.pricingRule.create({ data: { name: "Sample uplift", kind: "DATE", dates: [date], adjustmentType: "PERCENT", adjustmentValue: "10", appliesTo: "PLATES" } });
     const draft = await createDraft(sales(), booking.id, null);
     const result = await fillFromBooking(sales(), draft.id);
     expect(result.added).toBe(1);
     const line = await db.quotationLine.findFirstOrThrow({ where: { versionId: draft.id } });
     expect(line.quantity.toString()).toBe("250");
-    expect(line.unitPrice.toFixed(2)).toBe("935.00");
+    expect(line.unitPrice.toFixed(2)).toBe("850.00");
     expect(line.sacCode).toBe("996334");
+    expect(line.taxRatePercent.toFixed(2)).toBe("0.00"); // off by default
+    expect(line.lineTotal.toFixed(2)).toBe("212500.00");
     expect((await fillFromBooking(sales(), draft.id)).added).toBe(0);
-    await db.pricingRule.update({ where: { id: rule.id }, data: { active: false } });
+
   });
 
   it("payments are idempotent, refunds are capped, mistakes are reversed (never edited)", async () => {
@@ -263,7 +264,7 @@ describeDb("quotations, ledger, invoices and credit notes (Phase 3)", () => {
     const booking = await createBooking(sales(), createBookingSchema.parse({ customerId: customer.id, mainEventName: "Sample wedding", mainEventTypeKey: "wedding", initialStatus: "TENTATIVE" }));
     // A function that has already started (yesterday) so plates can be recorded.
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-    const { subEvent } = await addSubEvent(sales(), booking.id, subEventSchema.parse({ name: "Wedding", eventTypeKey: "wedding", date: yesterday, hallId: fx.hallA.id, slotDefinitionId: fx.morning.id }));
+    const { subEvent } = await addSubEvent(sales(), booking.id, subEventSchema.parse({ name: "Wedding", eventTypeKey: "wedding", date: yesterday, hallId: fx.hallA.id, ...fx.morning }));
     const starters = fx.menu.items.filter((i) => i.course === "starters").map((i) => i.id).slice(0, 2);
     await setMenuSelection(manager(), subEvent.id, menuSelectionSchema.parse({ menuPackageId: fx.menuPackage.id, itemIds: starters, guaranteedPlates: "200" }));
     const draft = await createDraft(sales(), booking.id, null);

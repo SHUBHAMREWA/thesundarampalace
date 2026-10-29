@@ -1,69 +1,45 @@
 import { Building2 } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 
-import { PageHeader } from "@/components/crm/page-header";
-import { EmptyState } from "@/components/shared/empty-state";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { SimpleCmsList } from "@/components/cms/simple-list";
 import { db } from "@/lib/db";
 import { t } from "@/lib/i18n/localized";
+
+// CRM pages read the session on every request (see src/app/admin/layout.tsx).
+export const instant = false;
 
 export const metadata: Metadata = { title: "Venues" };
 
 export default async function HallsPage() {
-  const halls = await db.hall.findMany({
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    include: { capacities: true },
-  });
+  const [halls, placements, page] = await Promise.all([
+    db.hall.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }),
+    db.mediaPlacement.findMany({ where: { ownerType: "hall" }, orderBy: { sortOrder: "asc" }, include: { asset: { select: { publicId: true } } } }),
+    db.websitePage.findUnique({ where: { kind_slug: { kind: "STANDARD", slug: "venues" } }, select: { id: true } }),
+  ]);
+  const photos = new Map<string, string[]>();
+  for (const p of placements) photos.set(p.ownerId, [...(photos.get(p.ownerId) ?? []), p.asset.publicId]);
   return (
-    <>
-      <PageHeader
-        title="Venues"
-        description="Halls and lawns. Enter only verified facts — empty fields show “Details coming soon” on the website."
-        actions={
-          <Button asChild>
-            <Link href="/admin/cms/halls/new">Add venue</Link>
-          </Button>
-        }
-      />
-      {halls.length ? (
-        <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
-          {halls.map((hall) => {
-            const missing = [
-              !hall.areaSqFt && "area",
-              !hall.capacities.length && "capacity",
-              !hall.heroAssetId && "photo",
-              !hall.floorPlanAssetId && "floor plan",
-            ].filter(Boolean);
-            return (
-              <li key={hall.id} className="flex items-center justify-between gap-3 p-4">
-                <div>
-                  <Link href={`/admin/cms/halls/${hall.id}`} className="font-medium text-primary hover:underline">
-                    {t(hall.name, "en")}
-                  </Link>
-                  <p className="text-xs text-text-muted">/venues/{hall.slug}</p>
-                </div>
-                <div className="flex flex-wrap justify-end gap-1">
-                  {missing.length ? <Badge variant="warning">Missing: {missing.join(", ")}</Badge> : null}
-                  {hall.published ? <Badge variant="success">Published</Badge> : <Badge variant="secondary">Draft</Badge>}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <EmptyState
-          icon={Building2}
-          title="No venues yet"
-          description="Add each hall or lawn once the business has supplied its name. Facts can be filled in later."
-          action={
-            <Button asChild>
-              <Link href="/admin/cms/halls/new">Add venue</Link>
-            </Button>
-          }
-        />
-      )}
-    </>
+    <SimpleCmsList
+      title="Venues"
+      description="Halls and lawns: a title, a description and photos. Click a venue to edit it or add photos. Published venues are shown one below the other on the Venues page."
+      newHref="/admin/cms/halls/new"
+      newLabel="Add venue"
+      icon={Building2}
+      emptyText="No venues yet"
+      showThumbs
+      pageHref={page ? `/admin/cms/pages/${page.id}` : null}
+      items={halls.map((hall) => {
+        const list = photos.get(hall.id) ?? [];
+        return {
+          id: hall.id,
+          href: `/admin/cms/halls/${hall.id}`,
+          title: t(hall.name, "en"),
+          subtitle: `${list.length} photo${list.length === 1 ? "" : "s"}`,
+          live: hall.published,
+          warning: list.length ? undefined : "No photos yet",
+          thumb: list[0] ?? null,
+        };
+      })}
+    />
   );
 }

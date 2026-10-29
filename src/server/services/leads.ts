@@ -6,10 +6,13 @@ import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { money } from "@/lib/money";
 import { istToUtc } from "@/lib/time";
+import { normalizePhone } from "@/lib/validation/phone";
 import { assertPermission, can, ForbiddenError, type Actor } from "@/server/policies/authorize";
 
 import { recordAudit } from "./audit";
+import { fieldError } from "./errors";
 import { notifyStaff } from "./notifications";
+import { nextLeadReference } from "./numbering";
 
 /**
  * Leads CRM (MASTER_PROMPT §7). Visibility: `leads.read_all` sees every lead;
@@ -307,3 +310,64 @@ export function canSeeAll(actor: Actor): boolean {
 }
 
 export { ForbiddenError };
+
+// ─── Added by staff ──────────────────────────────────────────────────────────
+
+/** The few things staff need to note a lead from a call, walk-in or WhatsApp. */
+export const newLeadSchema = z.object({
+  fullName: z.string().trim().min(2, "Enter the name").max(120),
+  phone: z
+    .string()
+    .trim()
+    .min(1, "Enter the mobile number")
+    .transform((value, ctx) => {
+      const normalized = normalizePhone(value);
+      if (!normalized) {
+        ctx.addIssue({ code: "custom", message: "Enter a valid mobile number" });
+        return z.NEVER;
+      }
+      return normalized;
+    }),
+  sourceKey: z.string().trim().min(1, "Choose where it came from").max(50),
+  eventTypeKey: z.string().max(50).optional().transform((v) => (v ? v : null)),
+  preferredDate: z
+    .string()
+    .optional()
+    .transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00Z`) : null)),
+  message: z.string().trim().max(2000).optional().transform((v) => (v ? v : null)),
+});
+
+/** Creates a lead typed in by staff (assigned to them, status New). */
+export async function createLead(actor: Actor, input: z.infer<typeof newLeadSchema>) {
+  assertPermission(actor, "leads.edit");
+  const [source, status] = await Promise.all([
+    db.lookupValue.findFirst({ where: { listKey: "lead_source", key: input.sourceKey, active: true } }),
+    db.lookupValue.findFirst({ where: { listKey: "lead_status", systemKey: "NEW" } }),
+  ]);
+  if (!source) fieldError("sourceKey", "Choose where it came from");
+  if (input.eventTypeKey) {
+    const type = await db.lookupValue.findFirst({ where: { listKey: "event_type", key: input.eventTypeKey } });
+    if (!type) fieldError("eventTypeKey", "Choose an event type");
+  }
+  return db.$transaction(async (tx) => {
+    const now = new Date();
+    const lead = await tx.lead.create({
+      data: {
+        reference: await nextLeadReference(tx, now),
+        statusKey: status?.key ?? "new",
+        sourceKey: input.sourceKey,
+        fullName: input.fullName,
+        phone: input.phone,
+        eventTypeKey: input.eventTypeKey,
+        preferredDate: input.preferredDate,
+        message: input.message,
+        contactPreference: "whatsapp",
+        assignedToId: actor.id,
+        lastActivityAt: now,
+      },
+    });
+    await tx.leadActivity.create({ data: { leadId: lead.id, kind: "CREATED", actorId: actor.id, data: { source: input.sourceKey, addedBy: "staff" } } });
+    await recordAudit({ actorId: actor.id, action: "lead.created", entityType: "lead", entityId: lead.id, summary: { reference: lead.reference, source: input.sourceKey } }, tx);
+    return lead;
+  });
+}

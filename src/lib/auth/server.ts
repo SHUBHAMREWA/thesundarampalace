@@ -15,7 +15,8 @@ const strict = e.APP_ENV === "staging" || e.APP_ENV === "production";
 /**
  * Staff authentication (docs/architecture.md ADR-05).
  * - Email + password only; no public sign-up — admins create staff accounts.
- * - TOTP two-factor; enforced for privileged roles by the CRM layout.
+ * - TOTP two-factor, optional: each user turns it on or off for themselves.
+ *   A role can still require it (Role.requires2fa); none does by default.
  * - Database sessions, revocable; cookies HttpOnly + Secure + SameSite=Lax.
  */
 export const auth = betterAuth({
@@ -39,7 +40,8 @@ export const auth = betterAuth({
     window: 60,
     max: 30,
     customRules: {
-      "/sign-in/email": { window: 300, max: 10 },
+      // The e2e suite signs in many times from one IP within five minutes.
+      "/sign-in/email": { window: 300, max: e.APP_ENV === "test" ? 100 : 10 },
       "/two-factor/verify-totp": { window: 300, max: 10 },
       "/two-factor/verify-backup-code": { window: 300, max: 10 },
     },
@@ -49,6 +51,23 @@ export const auth = betterAuth({
     defaultCookieAttributes: { sameSite: "lax", httpOnly: true },
   },
   databaseHooks: {
+    user: {
+      update: {
+        after: async (user, ctx) => {
+          // 2FA is optional (docs/security.md); turning it on or off is audited.
+          if (!ctx?.path.startsWith("/two-factor/")) return;
+          const enabled = (user as { twoFactorEnabled?: boolean | null }).twoFactorEnabled === true;
+          await recordAudit({
+            actorId: user.id,
+            action: enabled ? "auth.2fa_enabled" : "auth.2fa_disabled",
+            entityType: "user",
+            entityId: user.id,
+            ip: ctx.request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+            userAgent: ctx.request?.headers.get("user-agent") ?? null,
+          });
+        },
+      },
+    },
     session: {
       create: {
         after: async (session) => {

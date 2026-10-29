@@ -1,15 +1,19 @@
 import "server-only";
 
-import { GST_STATES } from "@/lib/validation/gst";
 import { MARITAL_STATUSES } from "@/server/services/customers";
 import { lookupOptions } from "@/server/services/lookups";
 
 export async function customerFormOptions() {
-  const [categories, professions] = await Promise.all([lookupOptions("customer_category"), lookupOptions("profession")]);
+  const [categories, professions] = await Promise.all([
+    lookupOptions("customer_category"),
+    lookupOptions("profession"),
+  ]);
   return {
     categories,
     professions,
-    states: GST_STATES.map((s) => ({ value: s.code, label: `${s.name} (${s.code})` })),
-    maritalStatuses: MARITAL_STATUSES.map((m) => ({ value: m.value, label: m.label })),
+    maritalStatuses: MARITAL_STATUSES.map((m) => ({
+      value: m.value,
+      label: m.label,
+    })),
   };
 }

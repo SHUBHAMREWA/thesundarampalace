@@ -1,4 +1,5 @@
 import { Clock, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
+import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { currentLocale } from "@/i18n/current";
 
@@ -8,25 +9,28 @@ import { EnquiryForm } from "@/components/website/enquiry-form";
 import { JsonLd } from "@/components/website/json-ld";
 import { PageHero } from "@/components/website/page-hero";
 import { formatPhoneForDisplay, telLink, whatsappLink } from "@/lib/contact/links";
+import { directionsUrl, mapEmbedUrl } from "@/lib/contact/map";
 import { RichText } from "@/lib/content/rich-text";
 import { env } from "@/lib/env";
 import { t } from "@/lib/i18n/localized";
 import { eventVenueJsonLd } from "@/lib/seo/structured-data";
 import { enquiryFormProps } from "@/server/cms/enquiry-props";
-import { metadataForPage } from "@/server/cms/page-metadata";
-import { getPage } from "@/server/cms/queries";
+import { pageMetadata } from "@/lib/seo/metadata";
 
-export const generateMetadata = () => metadataForPage("STANDARD", "contact", "/contact");
-
-/** Only Google Maps embed URLs are rendered in the iframe. */
-function isMapEmbed(url: string): boolean {
-  return /^https:\/\/(www\.)?google\.com\/maps\/embed\?/.test(url);
+/**
+ * Contact page — static wording (owner request, 28 Oct 2026), not editable in
+ * the CMS. Phone, WhatsApp, email, address, hours and map come from Settings,
+ * like the header and footer. Text: messages/{en,hi}.json → "contactPage".
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const [locale, tr] = await Promise.all([currentLocale(), getTranslations("contactPage")]);
+  return pageMetadata({ locale, path: "/contact", title: tr("metaTitle"), description: tr("metaDescription") });
 }
 
 export default async function ContactPage() {
   const locale = await currentLocale();
   const [page, props, tr, ph, cta] = await Promise.all([
-    getPage("STANDARD", "contact"),
+    getTranslations("contactPage"),
     enquiryFormProps(locale),
     getTranslations("contact"),
     getTranslations("placeholder"),
@@ -35,7 +39,8 @@ export default async function ContactPage() {
   const { contact, ...formProps } = props;
   const directions = t(contact.contact.directions, locale);
   const hasDetails = contact.address || contact.phone || contact.email || contact.whatsapp;
-  const mapUrl = contact.contact.mapEmbedUrl && isMapEmbed(contact.contact.mapEmbedUrl) ? contact.contact.mapEmbedUrl : null;
+  const mapUrl = mapEmbedUrl(contact);
+  const directionsHref = directionsUrl(contact);
 
   return (
     <>
@@ -50,7 +55,7 @@ export default async function ContactPage() {
           sameAs: [contact.contact.instagramUrl, contact.contact.facebookUrl, contact.contact.youtubeUrl],
         })}
       />
-      <PageHero title={t(page?.title, locale) || "Contact"} summary={t(page?.summary, locale)} hero={page?.hero} locale={locale} />
+      <PageHero title={page("title")} summary={page("summary")} eyebrow={page("eyebrow")} locale={locale} />
       <section className="py-16 md:py-24">
         <Container className="grid gap-12 lg:grid-cols-2">
           <div className="space-y-8">
@@ -139,8 +144,8 @@ export default async function ContactPage() {
                 />
               </div>
             ) : null}
-            {contact.contact.mapLink ? (
-              <a href={contact.contact.mapLink} target="_blank" rel="noopener noreferrer" className="inline-block text-sm font-medium text-primary underline underline-offset-4">
+            {directionsHref ? (
+              <a href={directionsHref} target="_blank" rel="noopener noreferrer" className="inline-block text-sm font-medium text-primary underline underline-offset-4">
                 {cta("directions")}
               </a>
             ) : null}
@@ -148,7 +153,7 @@ export default async function ContactPage() {
 
           <div>
             <h2 className="text-display-3 mb-6">{tr("quickEnquiry")}</h2>
-            <EnquiryForm variant="compact" {...formProps} />
+            <EnquiryForm {...formProps} />
           </div>
         </Container>
       </section>

@@ -4,9 +4,12 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/crm/page-header";
 import { db } from "@/lib/db";
 import { t, type Localized } from "@/lib/i18n/localized";
-import { mediaOptions } from "@/server/services/media";
+import { cloudinaryConfigured, mediaOptions } from "@/server/services/media";
 
 import { DecorEditor } from "./decor-editor";
+
+// CRM pages read the session on every request (see src/app/admin/layout.tsx).
+export const instant = false;
 
 export const metadata: Metadata = { title: "Edit décor theme" };
 
@@ -24,6 +27,7 @@ export default async function EditDecorPage({ params }: PageProps<"/admin/cms/de
     <>
       <PageHeader title={title} crumbs={[{ label: "Website CMS", href: "/admin/cms/pages" }, { label: "Décor", href: "/admin/cms/decor" }, { label: title }]} />
       <DecorEditor
+        uploads={cloudinaryConfigured()}
         id={theme?.id ?? null}
         media={media}
         defaults={{

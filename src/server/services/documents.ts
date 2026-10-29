@@ -68,7 +68,7 @@ export async function generateDocument(actor: Actor, request: DocumentRequest) {
   const bytes = pdf ?? Buffer.from(html, "utf8");
   return db.$transaction(async (tx) => {
     const previous = await tx.generatedDocument.count({ where: { bookingId: request.bookingId, documentType: request.type } });
-    const stored = await putPrivateFile(bytes, tx);
+    const stored = await putPrivateFile(bytes, pdf ? "application/pdf" : "text/html", tx);
     const doc = await tx.generatedDocument.create({
       data: {
         bookingId: request.bookingId,

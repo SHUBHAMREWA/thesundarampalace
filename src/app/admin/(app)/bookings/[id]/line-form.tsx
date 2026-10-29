@@ -1,21 +1,19 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 
-import { ActionFeedback, ActionForm, FormErrorsContext, SelectField, SubmitButton, TextField } from "@/components/forms/form-kit";
+import {
+  ActionFeedback,
+  ActionForm,
+  FormErrorsContext,
+  SelectField,
+  SubmitButton,
+  TextField,
+} from "@/components/forms/form-kit";
 import { idleState } from "@/server/actions/helpers-shared";
 import type { ActionState } from "@/server/actions/helpers";
 
 type Option = { value: string; label: string };
-export type ServiceOption = { id: string; label: string; name: string; unit: string; defaultPrice: string | null; taxCategoryId: string };
-
-const KINDS: Option[] = [
-  { value: "SERVICE", label: "Service" },
-  { value: "PLATES", label: "Plates (per-plate rate)" },
-  { value: "PACKAGE", label: "Package" },
-  { value: "CUSTOM", label: "Custom item" },
-  { value: "EXTRA_PLATES", label: "Extra plates" },
-];
 
 export type LineDefaults = {
   kind?: string;
@@ -25,75 +23,112 @@ export type LineDefaults = {
   quantity?: string;
   unitPrice?: string;
   discount?: string;
-  taxCategoryId?: string;
 };
 
+const inr = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 2,
+});
+
 /**
- * A quotation line. Picking a catalogue service fills in its name, unit,
- * default price and tax category (all still editable). The server computes
- * every amount; nothing typed here is trusted as a total.
+ * A quotation line, typed in by hand: what it is, how many, at what rate.
+ * Every customer gets their own price, so nothing comes from a catalogue.
+ * The total shown here is only a preview; the server computes the real one.
  */
 export function LineForm({
   action,
-  services,
-  taxCategories,
   functions,
   defaults = {},
   submitLabel,
   reset,
 }: {
   action: (prev: ActionState, form: FormData) => Promise<ActionState>;
-  services: ServiceOption[];
-  taxCategories: Option[];
   functions: Option[];
   defaults?: LineDefaults;
   submitLabel: string;
   reset?: boolean;
 }) {
   const [state, run] = useActionState(action, idleState);
-  const ref = useRef<HTMLFormElement>(null);
-  const [values, setValues] = useState<LineDefaults & { serviceItemId?: string }>({ kind: "SERVICE", discount: "0", quantity: "1", ...defaults });
+  const blank = {
+    quantity: "1",
+    unitPrice: "",
+    description: "",
+    subEventId: "",
+  };
+  const [values, setValues] = useState({ ...blank, ...defaults });
   // After a successful "add", start the next line from a clean form.
   const [seenAt, setSeenAt] = useState(state.at);
   if (state.at !== seenAt) {
     setSeenAt(state.at);
-    if (state.ok && reset) setValues({ kind: "SERVICE", discount: "0", quantity: "1" });
+    if (state.ok && reset) setValues({ ...blank });
   }
-  const set = (key: keyof typeof values) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [key]: e.target.value }));
+  const set =
+    (key: keyof typeof values) => (e: { target: { value: string } }) =>
+      setValues((v) => ({ ...v, [key]: e.target.value }));
+  const qty = Number(values.quantity.replace(/,/g, ""));
+  const rate = Number(values.unitPrice.replace(/,/g, ""));
+  const preview =
+    Number.isFinite(qty) && Number.isFinite(rate) && values.unitPrice
+      ? qty * rate
+      : null;
+
   return (
-    <ActionForm ref={ref} action={run} className="space-y-3" aria-label={submitLabel}>
+    <ActionForm action={run} className="space-y-3" aria-label={submitLabel}>
       <ActionFeedback state={state} />
+      {/* Kept as they were on existing lines; new lines are plain custom items. */}
+      <input type="hidden" name="kind" value={defaults.kind ?? "CUSTOM"} />
+      <input type="hidden" name="unit" value={defaults.unit ?? ""} />
+      <input type="hidden" name="discount" value={defaults.discount ?? "0"} />
       <FormErrorsContext value={state.fieldErrors}>
-        <div className="grid gap-3 md:grid-cols-4">
-          {services.length ? (
+        <div className="grid gap-3 md:grid-cols-6">
+          <TextField
+            name="description"
+            label="Item"
+            placeholder="e.g. Hall booking, Décor, Food for 600 guests"
+            className="md:col-span-3"
+            value={values.description}
+            onChange={set("description")}
+            required
+          />
+          <TextField
+            name="quantity"
+            label="Quantity"
+            inputMode="decimal"
+            value={values.quantity}
+            onChange={set("quantity")}
+          />
+          <TextField
+            name="unitPrice"
+            label="Rate (₹)"
+            inputMode="decimal"
+            placeholder="e.g. 150000"
+            className="md:col-span-2"
+            value={values.unitPrice}
+            onChange={set("unitPrice")}
+          />
+          {functions.length ? (
             <SelectField
-              name="serviceItemId"
-              label="From catalogue"
-              className="md:col-span-2"
-              options={services.map((s) => ({ value: s.id, label: s.label }))}
-              placeholder="— type it in instead —"
-              value={values.serviceItemId ?? ""}
-              onChange={(e) => {
-                const s = services.find((x) => x.id === e.target.value);
-                setValues((v) => ({
-                  ...v,
-                  serviceItemId: e.target.value,
-                  ...(s ? { kind: "SERVICE", description: s.name, unit: s.unit, unitPrice: s.defaultPrice ?? v.unitPrice, taxCategoryId: s.taxCategoryId } : {}),
-                }));
-              }}
+              name="subEventId"
+              label="For which function (optional)"
+              options={functions}
+              placeholder="Whole booking"
+              className="md:col-span-3"
+              value={values.subEventId}
+              onChange={set("subEventId")}
             />
           ) : null}
-          <SelectField name="kind" label="Type" options={KINDS} value={values.kind} onChange={set("kind")} />
-          <SelectField name="subEventId" label="Function (optional)" options={functions} value={values.subEventId ?? ""} onChange={set("subEventId")} placeholder="Whole booking" />
-          <TextField name="description" label="Description" className="md:col-span-2" value={values.description ?? ""} onChange={set("description")} />
-          <TextField name="unit" label="Unit" value={values.unit ?? ""} onChange={set("unit")} placeholder="event, plate, hour…" />
-          <SelectField name="taxCategoryId" label="Tax category" options={taxCategories} value={values.taxCategoryId ?? ""} onChange={set("taxCategoryId")} placeholder="Choose…" />
-          <TextField name="quantity" label="Quantity" inputMode="decimal" value={values.quantity ?? ""} onChange={set("quantity")} />
-          <TextField name="unitPrice" label="Unit price (₹)" inputMode="decimal" value={values.unitPrice ?? ""} onChange={set("unitPrice")} />
-          <TextField name="discount" label="Line discount (₹)" inputMode="decimal" value={values.discount ?? ""} onChange={set("discount")} />
         </div>
       </FormErrorsContext>
-      <SubmitButton size="sm">{submitLabel}</SubmitButton>
+      <div className="flex flex-wrap items-center gap-3">
+        <SubmitButton size="sm">{submitLabel}</SubmitButton>
+        {preview !== null ? (
+          <p className="text-sm text-text-muted">
+            Line total:{" "}
+            <strong className="text-foreground">{inr.format(preview)}</strong>
+          </p>
+        ) : null}
+      </div>
     </ActionForm>
   );
 }

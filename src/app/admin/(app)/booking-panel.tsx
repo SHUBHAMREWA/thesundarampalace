@@ -1,6 +1,7 @@
 import { CalendarClock, Hourglass, Wallet } from "lucide-react";
 import Link from "next/link";
 
+import { StatGrid, StatTile } from "@/components/crm/stat-tile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
@@ -58,26 +59,34 @@ export async function BookingPanel({ user }: { user: CurrentUser }) {
   ];
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-3">
-        {tiles.map(({ label, value, icon: Icon, href }) => (
-          <Link key={label} href={href} className="rounded-lg border border-border bg-surface p-5 transition-colors hover:border-primary">
-            <div className="flex items-center justify-between text-text-muted">
-              <span className="text-sm">{label}</span>
-              <Icon className="size-4" aria-hidden="true" />
-            </div>
-            <p className="mt-2 text-3xl font-semibold">{value}</p>
-          </Link>
+      <StatGrid half>
+        {tiles.map(({ label, value, icon, href }, i) => (
+          <StatTile key={label} label={label} value={value} icon={icon} href={href} tone={i + 3} />
         ))}
-      </div>
+      </StatGrid>
       <Card>
         <CardHeader><CardTitle>Coming up</CardTitle></CardHeader>
         <CardContent>
           {upcoming.length ? (
-            <ul className="divide-y divide-border">
+            /* Same look as a confirmed entry on the calendar. */
+            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {upcoming.map((f) => (
-                <li key={f.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                  <Link href={`/admin/bookings/${f.booking.id}`} className="font-medium text-primary hover:underline">{f.name}</Link>
-                  <span className="text-text-muted">{formatDateKey(dateKey(f.date), "EEE d MMM")} · {formatIST(f.startsAt, "h:mm a")} · {t(f.hall.name, "en")} · {f.booking.reference}</span>
+                <li key={f.id}>
+                  <Link
+                    href={`/admin/bookings/${f.booking.id}`}
+                    className="group flex items-stretch gap-3 rounded-lg bg-primary p-2 text-sm text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary-hover hover:shadow-[var(--shadow-card)]"
+                  >
+                    <span className="flex w-12 shrink-0 flex-col items-center justify-center rounded-md bg-surface/15 py-1 leading-none">
+                      <span className="text-[10px] uppercase opacity-80">{formatDateKey(dateKey(f.date), "EEE")}</span>
+                      <span className="text-lg font-semibold">{formatDateKey(dateKey(f.date), "d")}</span>
+                      <span className="text-[10px] uppercase opacity-80">{formatDateKey(dateKey(f.date), "MMM")}</span>
+                    </span>
+                    <span className="min-w-0 py-0.5">
+                      <span className="block truncate font-medium">{f.name}</span>
+                      <span className="block text-xs opacity-85">{formatIST(f.startsAt, "h:mm a")} · {t(f.hall.name, "en")}</span>
+                      <span className="block text-xs opacity-70">{f.booking.reference}</span>
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ul>

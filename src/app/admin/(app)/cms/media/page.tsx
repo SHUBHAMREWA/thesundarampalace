@@ -11,6 +11,9 @@ import { cloudinaryConfigured } from "@/server/services/media";
 
 import { AssetCard, UploadForm } from "./media-forms";
 
+// CRM pages read the session on every request (see src/app/admin/layout.tsx).
+export const instant = false;
+
 export const metadata: Metadata = { title: "Media library" };
 
 export default async function MediaPage() {

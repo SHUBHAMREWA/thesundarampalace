@@ -46,7 +46,8 @@ export function PageHeader({
             </BreadcrumbList>
           </Breadcrumb>
         ) : null}
-        <h1 className="text-2xl font-semibold">{title}</h1>
+        <h1 className="text-2xl font-semibold text-primary-deep">{title}</h1>
+        <span className="mt-2 block h-0.5 w-12 rounded-full bg-gold" aria-hidden="true" />
         {description ? <p className="mt-1 text-sm text-text-muted">{description}</p> : null}
       </div>
       {actions ? <div className="flex gap-2">{actions}</div> : null}

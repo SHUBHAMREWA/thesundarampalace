@@ -16,11 +16,9 @@ import {
   money,
   roundMoney,
   sumMoney,
-  type SupplyType,
 } from "@/lib/money";
 import { dateFromKey, dateKey, todayIST } from "@/lib/time";
 import {
-  checkboxBool,
   dateKeySchema,
   idempotencyKeySchema,
   optionalText,
@@ -29,13 +27,11 @@ import {
   requiredText,
   moneyString,
 } from "@/lib/validation/forms";
-import { gstStateName } from "@/lib/validation/gst";
 import { assertPermission, can, type Actor } from "@/server/policies/authorize";
 
 import { recordActivity } from "./activity";
 import { recordAudit } from "./audit";
 import { bookingVisibility, type MenuSnapshot } from "./bookings";
-import { taxFor } from "./catalog";
 import { fieldError, isUniqueViolation, RuleError } from "./errors";
 import { NotFoundError } from "./leads";
 import { notifyStaff } from "./notifications";
@@ -92,7 +88,7 @@ export async function moneySummary(actor: Actor, bookingId: string) {
   const cancellation = booking.cancellation as { agreedRefund?: string } | null;
   const postEventTotal = sumMoney(charges.map((c) => c.lineTotal));
   const balance = bookingBalance({
-    acceptedTotal: accepted?.grandTotal ?? "0",
+    acceptedTotal: accepted?.grandTotal ?? booking.bookingAmount ?? "0",
     postEventTotal,
     ledger: ledger.map((e) => ({ type: e.type, direction: e.direction, amount: e.amount })),
     deposits: deposits.map((d) => ({ type: d.type, amount: d.amount })),
@@ -352,27 +348,16 @@ export const chargeSchema = z.object({
   unit: requiredText("Unit", 40),
   quantity: quantityString,
   unitPrice: moneyString("the unit price"),
-  taxCategoryId: requiredText("Tax category", 50),
-  pricesIncludeTax: checkboxBool,
 });
-
-async function supplyFor(booking: { acceptedQuotationId: string | null; placeOfSupplyStateCode: string | null }): Promise<SupplyType> {
-  if (booking.acceptedQuotationId) {
-    const accepted = await db.quotationVersion.findUnique({ where: { id: booking.acceptedQuotationId }, select: { supplyType: true } });
-    if (accepted) return accepted.supplyType;
-  }
-  const { stateCode } = await getSettings("business");
-  if (stateCode && booking.placeOfSupplyStateCode) return stateCode === booking.placeOfSupplyStateCode ? "INTRA" : "INTER";
-  throw new RuleError("Accept a quotation (or set the place of supply and the venue's GST state) before adding charges.");
-}
 
 async function createCharge(
   tx: Prisma.TransactionClient,
   actor: Actor,
   booking: { id: string; reference: string },
-  data: { kind: "EXTRA_PLATES" | "EXTRA_HOURS" | "OTHER"; subEventId: string | null; description: string; unit: string; quantity: string; unitPrice: string; sacCode: string; ratePercent: string; pricesIncludeTax: boolean; supplyType: SupplyType; idempotencyKey: string },
+  data: { kind: "EXTRA_PLATES" | "EXTRA_HOURS" | "OTHER"; subEventId: string | null; description: string; unit: string; quantity: string; unitPrice: string; idempotencyKey: string },
 ) {
-  const result = computeQuote([{ quantity: data.quantity, unitPrice: data.unitPrice, taxRatePercent: data.ratePercent }], { pricesIncludeTax: data.pricesIncludeTax, supplyType: data.supplyType });
+  // No GST (owner decision, 26 Oct 2026): tax columns keep neutral values.
+  const result = computeQuote([{ quantity: data.quantity, unitPrice: data.unitPrice, taxRatePercent: "0" }], { pricesIncludeTax: false, supplyType: "INTRA" });
   const line = result.lines[0];
   const charge = await tx.postEventCharge.create({
     data: {
@@ -380,13 +365,13 @@ async function createCharge(
       subEventId: data.subEventId,
       kind: data.kind,
       description: data.description,
-      sacCode: data.sacCode,
+      sacCode: "",
       unit: data.unit,
       quantity: data.quantity,
       unitPrice: data.unitPrice,
-      taxRatePercent: data.ratePercent,
-      pricesIncludeTax: data.pricesIncludeTax,
-      supplyType: data.supplyType,
+      taxRatePercent: "0",
+      pricesIncludeTax: false,
+      supplyType: "INTRA",
       taxableValue: line.taxableValue.toFixed(2),
       cgst: line.cgst.toFixed(2),
       sgst: line.sgst.toFixed(2),
@@ -406,14 +391,7 @@ export async function recordCharge(actor: Actor, bookingId: string, input: z.inf
   const booking = await requireBookingForMoney(actor, bookingId);
   if (!isFirm(booking.status)) throw new RuleError("Post-event charges apply to confirmed bookings.");
   if (input.subEventId && !(await db.bookingSubEvent.findFirst({ where: { id: input.subEventId, bookingId } }))) fieldError("subEventId", "Choose one of this booking's functions");
-  const tax = await taxFor(input.taxCategoryId);
-  if (!tax) fieldError("taxCategoryId", "This tax category has no rate in force today");
-  const supplyType = await supplyFor(booking);
-  return onceOnly(() =>
-    db.$transaction((tx) =>
-      createCharge(tx, actor, booking, { ...input, subEventId: input.subEventId, sacCode: tax.sacCode, ratePercent: tax.ratePercent, supplyType }),
-    ),
-  );
+  return onceOnly(() => db.$transaction((tx) => createCharge(tx, actor, booking, { ...input, subEventId: input.subEventId })));
 }
 
 /** Bills plates served beyond the guarantee at the agreed per-plate rate (from the menu snapshot). */
@@ -427,11 +405,9 @@ export async function billExtraPlates(actor: Actor, subEventId: string, idempote
   const { extra } = plateDifference(subEvent.menuSelection.guaranteedPlates, subEvent.menuSelection.actualPlates);
   if (extra <= 0) throw new RuleError("No plates were served beyond the guarantee.");
   const snap = subEvent.menuSelection.snapshot as unknown as MenuSnapshot;
-  if (!snap.sacCode || !snap.taxRatePercent) throw new RuleError("The menu's tax rate wasn't known when it was chosen; add the charge by hand.");
   const accepted = booking.acceptedQuotationId ? await db.quotationVersion.findUnique({ where: { id: booking.acceptedQuotationId }, include: { lines: { where: { kind: "PLATES", subEventId } } } }) : null;
   // The agreed rate: the accepted quotation's plate line if there is one, else the menu snapshot.
   const rate = accepted?.lines[0]?.unitPrice.toFixed(2) ?? snap.perPlateRate;
-  const supplyType = await supplyFor(booking);
   return onceOnly(() =>
     db.$transaction((tx) =>
       createCharge(tx, actor, booking, {
@@ -441,40 +417,25 @@ export async function billExtraPlates(actor: Actor, subEventId: string, idempote
         unit: "plate",
         quantity: String(extra),
         unitPrice: rate,
-        sacCode: snap.sacCode!,
-        ratePercent: snap.taxRatePercent!,
-        pricesIncludeTax: accepted?.pricesIncludeTax ?? false,
-        supplyType,
         idempotencyKey,
       }),
     ),
   );
 }
 
-// ─── GST invoices ────────────────────────────────────────────────────────────
+// ─── Invoices (no GST) ───────────────────────────────────────────────────────
 
-export type SupplierSnapshot = { legalName: string; gstin: string; address: string; stateCode: string; stateName: string | null; phone: string | null; email: string | null };
-export type RecipientSnapshot = { name: string; companyName: string | null; gstin: string | null; address: string | null; stateCode: string; stateName: string | null; phone: string | null };
+/** `gstin`, `stateCode` and `stateName` only appear on invoices issued before GST was removed. */
+export type SupplierSnapshot = { legalName: string; gstin?: string | null; address: string; stateCode?: string | null; stateName?: string | null; phone: string | null; email: string | null };
+export type RecipientSnapshot = { name: string; companyName: string | null; gstin?: string | null; address: string | null; stateCode?: string | null; stateName?: string | null; phone: string | null };
 
-/** Business details an invoice legally needs; refuses to issue until Settings has them. */
+/** Seller details printed on invoices; refuses to issue until Settings has them. */
 async function supplierSnapshot(): Promise<SupplierSnapshot> {
   const business = await getSettings("business");
-  const missing = [
-    !business.legalName && "legal name",
-    !business.gstin && "GSTIN",
-    !business.stateCode && "GST state",
-    !business.address && "address",
-  ].filter(Boolean);
-  if (missing.length) throw new RuleError(`Add the business's ${missing.join(", ")} in Settings → Business details before issuing tax invoices.`);
-  return {
-    legalName: business.legalName!,
-    gstin: business.gstin!,
-    address: business.address!,
-    stateCode: business.stateCode!,
-    stateName: gstStateName(business.stateCode),
-    phone: business.phone,
-    email: business.email,
-  };
+  const legalName = business.legalName || business.displayName;
+  const missing = [!legalName && "legal name", !business.address && "address"].filter(Boolean);
+  if (missing.length) throw new RuleError(`Add the business's ${missing.join(", ")} in Settings → Business details before issuing invoices.`);
+  return { legalName: legalName!, address: business.address!, phone: business.phone, email: business.email };
 }
 
 export const invoiceSchema = z.object({
@@ -485,7 +446,7 @@ export const invoiceSchema = z.object({
 });
 
 /**
- * Issues a GST tax invoice — from the accepted quotation (once), or for the
+ * Issues an invoice (no GST) — from the accepted quotation (once), or for the
  * post-event charges not yet invoiced. Values are copied exactly from those
  * records; the number is allocated in the same transaction (gap-free).
  */
@@ -493,7 +454,7 @@ export async function issueInvoice(actor: Actor, bookingId: string, input: z.inf
   assertPermission(actor, "invoices.issue");
   const booking = await db.booking.findFirst({ where: { AND: [{ id: bookingId }, bookingVisibility(actor)] }, include: { customer: true } });
   if (!booking) throw new NotFoundError("Booking");
-  if (!isFirm(booking.status)) throw new RuleError("Tax invoices are issued for confirmed bookings.");
+  if (!isFirm(booking.status)) throw new RuleError("Invoices are issued for confirmed bookings.");
   assertNotFuture(input.issuedOn, "issuedOn");
   const supplier = await supplierSnapshot();
   const { invoicePrefix } = await getSettings("numbering");
@@ -501,9 +462,6 @@ export async function issueInvoice(actor: Actor, bookingId: string, input: z.inf
 
   type Line = Omit<Prisma.InvoiceLineCreateManyInput, "invoiceId">;
   let lines: Line[] = [];
-  let pricesIncludeTax = false;
-  let supplyType: SupplyType;
-  let placeOfSupply: string;
   let quotationVersionId: string | null = null;
   let roundOff = roundMoney(0);
 
@@ -513,9 +471,6 @@ export async function issueInvoice(actor: Actor, bookingId: string, input: z.inf
     if (already) throw new RuleError(`The accepted quotation is already invoiced (${already.number}). Use a credit note for reductions, or invoice post-event charges.`);
     const version = await db.quotationVersion.findUniqueOrThrow({ where: { id: booking.acceptedQuotationId }, include: { lines: { orderBy: { sortOrder: "asc" } } } });
     quotationVersionId = version.id;
-    pricesIncludeTax = version.pricesIncludeTax;
-    supplyType = version.supplyType;
-    placeOfSupply = version.placeOfSupplyStateCode;
     roundOff = roundMoney(version.roundOff);
     lines = version.lines.map((l, i) => ({
       sortOrder: (i + 1) * 10,
@@ -536,12 +491,6 @@ export async function issueInvoice(actor: Actor, bookingId: string, input: z.inf
   } else {
     const charges = await db.postEventCharge.findMany({ where: { bookingId, invoiceLines: { none: {} } }, orderBy: { createdAt: "asc" } });
     if (!charges.length) throw new RuleError("There are no post-event charges waiting to be invoiced.");
-    const types = new Set(charges.map((c) => `${c.supplyType}|${c.pricesIncludeTax}`));
-    if (types.size > 1) throw new RuleError("These charges use different tax treatments; invoice them separately with the accountant's help.");
-    pricesIncludeTax = charges[0].pricesIncludeTax;
-    supplyType = charges[0].supplyType;
-    const accepted = booking.acceptedQuotationId ? await db.quotationVersion.findUnique({ where: { id: booking.acceptedQuotationId }, select: { placeOfSupplyStateCode: true } }) : null;
-    placeOfSupply = accepted?.placeOfSupplyStateCode ?? booking.placeOfSupplyStateCode ?? "";
     lines = charges.map((c, i) => ({
       sortOrder: (i + 1) * 10,
       description: c.description,
@@ -559,15 +508,11 @@ export async function issueInvoice(actor: Actor, bookingId: string, input: z.inf
       postEventChargeId: c.id,
     }));
   }
-  if (!placeOfSupply) throw new RuleError("Set the place of supply on the booking first.");
   const recipientAddress = [booking.customer.address, booking.customer.locality, booking.customer.city].filter(Boolean).join(", ") || null;
   const recipient: RecipientSnapshot = {
     name: booking.customer.fullName,
     companyName: booking.customer.companyName,
-    gstin: booking.customer.gstin,
     address: recipientAddress,
-    stateCode: placeOfSupply,
-    stateName: gstStateName(placeOfSupply),
     phone: booking.customer.mobile,
   };
   const sum = (key: "taxableValue" | "cgst" | "sgst" | "igst" | "lineTotal") => sumMoney(lines.map((l) => String(l[key])));
@@ -590,9 +535,9 @@ export async function issueInvoice(actor: Actor, bookingId: string, input: z.inf
           issuedOn,
           supplier: supplier as unknown as Prisma.InputJsonValue,
           recipient: recipient as unknown as Prisma.InputJsonValue,
-          placeOfSupplyStateCode: placeOfSupply,
-          supplyType,
-          pricesIncludeTax,
+          placeOfSupplyStateCode: "",
+          supplyType: "INTRA",
+          pricesIncludeTax: false,
           taxableTotal: taxableTotal.toFixed(2),
           cgstTotal: cgstTotal.toFixed(2),
           sgstTotal: sgstTotal.toFixed(2),
@@ -607,7 +552,7 @@ export async function issueInvoice(actor: Actor, bookingId: string, input: z.inf
         },
       });
       await tx.invoiceLine.createMany({ data: lines.map((l) => ({ ...l, invoiceId: invoice.id })) });
-      await recordActivity({ entityType: "booking", entityId: bookingId, actorId: actor.id, kind: "INVOICE", message: `Tax invoice ${invoice.number} issued (${formatINR(grandTotal)})` }, tx);
+      await recordActivity({ entityType: "booking", entityId: bookingId, actorId: actor.id, kind: "INVOICE", message: `Invoice ${invoice.number} issued (${formatINR(grandTotal)})` }, tx);
       await recordAudit({ actorId: actor.id, action: "invoice.issued", entityType: "invoice", entityId: invoice.id, summary: { number: invoice.number, booking: booking.reference, grandTotal: grandTotal.toFixed(2) } }, tx);
       return invoice;
     }),

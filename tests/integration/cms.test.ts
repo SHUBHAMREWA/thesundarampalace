@@ -19,22 +19,8 @@ const hallInput = (overrides: Record<string, unknown> = {}) =>
   hallSchema.parse({
     name: { en: "Sample Hall A", hi: "" },
     slug: "sample-hall-a",
-    summary: { en: "", hi: "" },
-    description: { en: "", hi: "" },
-    areaSqFt: "",
-    ceilingHeightFt: "",
-    capacities: [
-      { layout: "BANQUET", minGuests: "100", maxGuests: "300" },
-      { layout: "THEATRE", minGuests: "", maxGuests: "" },
-    ],
-    facilities: [{ key: "ac" }],
-    eventTypeKeys: ["wedding"],
-    slotsInfo: { en: "", hi: "" },
-    heroAssetId: "",
-    floorPlanAssetId: "",
+    description: { en: "A lawn for weddings.", hi: "" },
     imageIds: [],
-    tourUrl: "",
-    seo: { title: { en: "", hi: "" }, description: { en: "", hi: "" } },
     published: true,
     sortOrder: "0",
     ...overrides,
@@ -50,19 +36,14 @@ describeDb("website CMS (test #23)", () => {
 
   afterAll(() => db.$disconnect());
 
-  it("saves a venue with only the verified capacities", async () => {
+  it("saves a venue with its title and description", async () => {
     const id = await saveHall(editorAndPublisher, null, hallInput());
-    const hall = await db.hall.findUniqueOrThrow({ where: { id }, include: { capacities: true } });
-    expect(hall.areaSqFt).toBeNull(); // unknown stays unknown, never 0
-    expect(hall.capacities).toHaveLength(1);
-    expect(hall.capacities[0]).toMatchObject({ layout: "BANQUET", minGuests: 100, maxGuests: 300 });
+    const hall = await db.hall.findUniqueOrThrow({ where: { id } });
+    expect(hall.description).toEqual({ en: "A lawn for weddings." });
   });
 
-  it("rejects duplicate addresses and impossible capacities", async () => {
+  it("rejects duplicate addresses", async () => {
     await expect(saveHall(editorAndPublisher, null, hallInput())).rejects.toThrow(/already uses this address/);
-    expect(() =>
-      hallInput({ slug: "x-hall", capacities: [{ layout: "BANQUET", minGuests: "500", maxGuests: "100" }] }),
-    ).toThrow(/Minimum can't be above maximum/);
   });
 
   it("needs cms.publish to change what is public", async () => {
@@ -115,9 +96,9 @@ describeDb("website CMS (test #23)", () => {
       data: { publicId: "sundaram/test/used", resourceType: "image", kind: "IMAGE", alt: { en: "Test image" }, group: "halls" },
     });
     const hall = await db.hall.findUniqueOrThrow({ where: { slug: "sample-hall-a" } });
-    await db.hall.update({ where: { id: hall.id }, data: { heroAssetId: asset.id } });
+    await db.mediaPlacement.create({ data: { ownerType: "hall", ownerId: hall.id, assetId: asset.id } });
     await expect(deleteAsset(editorAndPublisher, asset.id)).rejects.toThrow(/still used/);
-    await db.hall.update({ where: { id: hall.id }, data: { heroAssetId: null } });
+    await db.mediaPlacement.deleteMany({ where: { assetId: asset.id } });
     await deleteAsset(editorAndPublisher, asset.id);
     expect(await db.mediaAsset.count({ where: { id: asset.id } })).toBe(0);
   });

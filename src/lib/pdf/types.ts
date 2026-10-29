@@ -14,7 +14,6 @@ export type DocFunction = {
   date: string;
   time: string;
   hall: string;
-  slot: string | null;
   guests: number | null;
   plates: number | null;
   menuName: string | null;
@@ -71,23 +70,21 @@ export type DocumentData = {
     tagline: string | null;
     footer: string | null;
   };
-  customer?: { name?: string; company?: string | null; mobile?: string; email?: string | null; address?: string | null; gstin?: string | null };
+  customer?: { name?: string; company?: string | null; mobile?: string; email?: string | null; address?: string | null };
   event?: { name: string; type: string; dates: string; guests: number | null };
   functions?: DocFunction[];
   halls?: { name: string; details: string[] }[];
   parties?: DocParty[];
-  packageName?: string | null;
   quotation?: {
     version: number;
     status: string;
     validUntil: string | null;
-    pricesIncludeTax: boolean;
     supplyType: "INTRA" | "INTER";
-    placeOfSupply: string;
     lines?: DocLine[];
     totals: DocTotals;
     showDiscount: boolean;
-    showTax: boolean;
+    /** Only versions made before GST was removed (26 Oct 2026) carry tax. */
+    gst: { pricesIncludeTax: boolean; placeOfSupply: string } | null;
   };
   payments?: {
     received?: { date: string; label: string; method: string; amount: Money; direction: "IN" | "OUT" }[];
@@ -96,16 +93,17 @@ export type DocumentData = {
     balance?: Money;
     schedule?: { label: string; dueOn: string; amount: Money; paid: Money; status: string }[];
   };
-  deposit?: { entries: { date: string; type: string; amount: Money; reason: string | null }[]; received: Money; deducted: Money; refunded: Money; held: Money };
+  /** The amount entered when the booking was made, printed when no quotation has been accepted. */
+  bookingAmount?: { amount: Money; inWords: string };
   receipt?: { number: string; date: string; amount: Money; method: string; transactionRef: string | null; inWords: string; balanceAfter?: Money };
   invoice?: {
     number: string;
     date: string;
-    supplier: { legalName: string; gstin: string; address: string; state: string; phone: string | null; email: string | null };
-    recipient: { name: string; company: string | null; gstin: string | null; address: string | null; state: string };
-    placeOfSupply: string;
+    supplier: { legalName: string; gstin: string | null; address: string; state: string | null; phone: string | null; email: string | null };
+    recipient: { name: string; company: string | null; gstin: string | null; address: string | null; state: string | null };
     supplyType: "INTRA" | "INTER";
-    pricesIncludeTax: boolean;
+    /** Only invoices issued before GST was removed (26 Oct 2026) carry tax. */
+    gst: { placeOfSupply: string } | null;
     lines: DocLine[];
     totals: DocTotals;
     notes: string | null;
@@ -120,6 +118,7 @@ export type DocumentData = {
     supplier: NonNullable<DocumentData["invoice"]>["supplier"];
     recipient: NonNullable<DocumentData["invoice"]>["recipient"];
     supplyType: "INTRA" | "INTER";
+    gst: boolean;
     lines: DocLine[];
     totals: DocTotals;
   };

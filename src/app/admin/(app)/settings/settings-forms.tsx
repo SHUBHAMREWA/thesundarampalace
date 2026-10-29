@@ -13,7 +13,6 @@ import {
   TextField,
 } from "@/components/forms/form-kit";
 import type { SettingsSection } from "@/lib/settings/schemas";
-import { GST_STATES } from "@/lib/validation/gst";
 import { idleState } from "@/server/actions/helpers-shared";
 import { saveSettingsAction } from "@/server/actions/settings";
 
@@ -31,8 +30,6 @@ export function BusinessForm({ defaults }: { defaults: SettingsSection<"business
         <TextField name="email" label="Public email" type="email" defaultValue={defaults.email ?? ""} error={e.email} />
         <TextField name="officeHours" label="Office hours" defaultValue={defaults.officeHours ?? ""} placeholder="e.g. Mon–Sun, 10:00–19:00" />
         <TextField name="city" label="City" defaultValue={defaults.city ?? ""} />
-        <TextField name="gstin" label="GSTIN" defaultValue={defaults.gstin ?? ""} error={e.gstin} />
-        <SelectField name="stateCode" label="Venue state (GST)" defaultValue={defaults.stateCode ?? ""} placeholder="—" options={GST_STATES.map((st) => ({ value: st.code, label: `${st.name} (${st.code})` }))} error={e.stateCode} />
       </div>
       <TextAreaField name="address" label="Full address" rows={2} defaultValue={defaults.address ?? ""} />
       <SubmitButton>Save business details</SubmitButton>

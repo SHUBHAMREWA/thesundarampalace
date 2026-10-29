@@ -3,21 +3,19 @@ import { expect, test, type Page } from "@playwright/test";
 import { E2E_USERS } from "./fixtures";
 import { signIn } from "./helpers";
 
-async function fillStep1(page: Page) {
+async function fillEvent(page: Page) {
   await page.getByLabel("Type of event").selectOption({ label: "Wedding" });
   await page.getByLabel(/Approximate number of guests/).fill("350");
-  await page.getByRole("button", { name: "Continue" }).click();
 }
 
 test.describe.serial("enquiry → lead → CRM (tests #1, #2, #4)", () => {
   let reference = "";
 
-  test("validates each step in the browser", async ({ page }) => {
+  test("validates the form in the browser", async ({ page }) => {
     await page.goto("/en/plan-your-event");
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("This field is required")).toBeVisible();
-    await fillStep1(page);
-    await page.getByRole("button", { name: "Continue" }).click(); // step 2 is optional
+    await page.getByRole("button", { name: "Send enquiry" }).click();
+    await expect(page.getByText("This field is required").first()).toBeVisible();
+    await fillEvent(page);
     await page.getByLabel("Full name").fill("E2E Visitor");
     await page.getByLabel("Mobile number").fill("12345");
     await page.getByRole("button", { name: "Send enquiry" }).click();
@@ -31,9 +29,8 @@ test.describe.serial("enquiry → lead → CRM (tests #1, #2, #4)", () => {
     await page.goto("/en?utm_source=e2e&utm_medium=test&utm_campaign=launch");
     await page.getByRole("link", { name: "Plan your event" }).first().click();
     await expect(page).toHaveURL(/\/en\/plan-your-event$/);
-    await fillStep1(page);
+    await fillEvent(page);
     await page.getByLabel(/Tell us about your vision/).fill("Three functions over two days.");
-    await page.getByRole("button", { name: "Continue" }).click();
     await page.getByLabel("Full name").fill("E2E Visitor Sharma");
     await page.getByLabel("Mobile number").fill("90000 11122");
     await page.getByLabel(/I agree that The Sundaram Palace may contact me/).check();
@@ -59,7 +56,8 @@ test.describe.serial("enquiry → lead → CRM (tests #1, #2, #4)", () => {
   test("Sales sees the unassigned lead with its campaign and works on it", async ({ page }) => {
     await signIn(page, E2E_USERS.sales.email);
     await expect(page).toHaveURL(/\/admin$/);
-    await page.getByRole("link", { name: "Leads" }).first().click();
+    await page.getByRole("button", { name: "Leads and customers" }).click();
+    await page.getByRole("link", { name: "All leads" }).click();
     await page.getByLabel("Search by name, phone or reference").fill(reference);
     await page.getByRole("button", { name: "Apply" }).click();
     await page.getByRole("link", { name: "E2E Visitor Sharma" }).click();

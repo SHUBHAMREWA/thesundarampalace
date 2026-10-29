@@ -6,6 +6,7 @@ import type { HomeSectionType } from "@/lib/content/catalog";
 import { db } from "@/lib/db";
 import type { Localized } from "@/lib/i18n/localized";
 import type { SettingsSection } from "@/lib/settings/schemas";
+import { istDateKey } from "@/lib/time";
 import { getSettings } from "@/server/services/settings";
 
 /**
@@ -57,7 +58,10 @@ function media(asset: AssetRow | null | undefined): MediaView | null {
   };
 }
 
-async function placementsFor(ownerType: string, ownerIds: string[]): Promise<Map<string, MediaView[]>> {
+async function placementsFor(
+  ownerType: string,
+  ownerIds: string[],
+): Promise<Map<string, MediaView[]>> {
   const rows = await db.mediaPlacement.findMany({
     where: { ownerType, ownerId: { in: ownerIds } },
     orderBy: { sortOrder: "asc" },
@@ -86,7 +90,11 @@ export type PageView = {
   updatedAt: string;
 };
 
-function pageView(row: Awaited<ReturnType<typeof db.websitePage.findFirst>> & { heroAsset: AssetRow | null }): PageView {
+function pageView(
+  row: Awaited<ReturnType<typeof db.websitePage.findFirst>> & {
+    heroAsset: AssetRow | null;
+  },
+): PageView {
   return {
     kind: row.kind,
     slug: row.slug,
@@ -99,7 +107,10 @@ function pageView(row: Awaited<ReturnType<typeof db.websitePage.findFirst>> & { 
   };
 }
 
-export async function getPage(kind: PageView["kind"], slug: string): Promise<PageView | null> {
+export async function getPage(
+  kind: PageView["kind"],
+  slug: string,
+): Promise<PageView | null> {
   "use cache";
   cms();
   const row = await db.websitePage.findFirst({
@@ -107,6 +118,65 @@ export async function getPage(kind: PageView["kind"], slug: string): Promise<Pag
     include: { heroAsset: true },
   });
   return row ? pageView(row) : null;
+}
+
+/** Photo gallery of a standard page (see PAGES_WITH_PHOTOS), in the chosen order. */
+export async function getPagePhotos(slug: string): Promise<MediaView[]> {
+  "use cache";
+  cms();
+  const page = await db.websitePage.findFirst({
+    where: { kind: "STANDARD", slug, published: true },
+    select: { id: true },
+  });
+  if (!page) return [];
+  return (await placementsFor("service_page", [page.id])).get(page.id) ?? [];
+}
+
+/** The About page's header photo and owner portrait (chosen in the CMS; the text is static). */
+export async function getAboutPhotos(): Promise<{
+  header: MediaView | null;
+  owner: MediaView | null;
+}> {
+  "use cache";
+  cms();
+  const rows = await db.mediaPlacement.findMany({
+    where: { ownerType: "about_page" },
+    include: { asset: true },
+  });
+  const find = (slot: string) =>
+    media(rows.find((r) => r.ownerId === slot)?.asset);
+  return { header: find("header"), owner: find("owner") };
+}
+
+export type TestimonialView = {
+  id: string;
+  name: string;
+  event: Partial<Localized> | null;
+  quote: Localized;
+  rating: number;
+  photo: MediaView | null;
+};
+
+/** Published guest reviews the guest agreed to share, newest first. */
+export async function listTestimonials(): Promise<TestimonialView[]> {
+  "use cache";
+  cms();
+  const rows = await db.testimonial.findMany({
+    where: { published: true, consent: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const photos = await placementsFor(
+    "testimonial",
+    rows.map((r) => r.id),
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    event: (row.event as Partial<Localized> | null) ?? null,
+    quote: row.quote as Localized,
+    rating: row.rating,
+    photo: photos.get(row.id)?.[0] ?? null,
+  }));
 }
 
 export async function listPages(kind: PageView["kind"]): Promise<PageView[]> {
@@ -120,6 +190,41 @@ export async function listPages(kind: PageView["kind"]): Promise<PageView[]> {
   return rows.map(pageView);
 }
 
+export type CelebrationView = {
+  slug: string;
+  title: Localized;
+  description: Partial<Localized> | null;
+  images: MediaView[];
+};
+
+/** Published celebrations (SERVICE pages) with their photos; an older header image comes first. */
+export async function listCelebrations(): Promise<CelebrationView[]> {
+  "use cache";
+  cms();
+  const rows = await db.websitePage.findMany({
+    where: { kind: "SERVICE", published: true },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    include: { heroAsset: true },
+  });
+  const images = await placementsFor(
+    "service_page",
+    rows.map((r) => r.id),
+  );
+  return rows.map((row) => {
+    const photos = images.get(row.id) ?? [];
+    const hero = media(row.heroAsset);
+    return {
+      slug: row.slug,
+      title: row.title as Localized,
+      description: (row.body as Partial<Localized> | null) ?? null,
+      images:
+        hero && !photos.some((m) => m.publicId === hero.publicId)
+          ? [hero, ...photos]
+          : photos,
+    };
+  });
+}
+
 // ─── Homepage ───────────────────────────────────────────────────────────────
 
 export type HomeSectionView = {
@@ -129,31 +234,72 @@ export type HomeSectionView = {
   intro: Localized | null;
   /** Hero only */
   subheading?: Localized | null;
+  heroMedia?: "images" | "video";
+  slides?: MediaView[];
+  video?: MediaView | null;
   videoPath?: string | null;
   poster?: MediaView | null;
+  /** Venues, celebrations, catering: left/right picture carousel. */
+  pictures: MediaView[];
 };
 
 export async function getHomeSections(): Promise<HomeSectionView[]> {
   "use cache";
   cms();
   const rows = await db.homeSection.findMany({ orderBy: { sortOrder: "asc" } });
-  const posterIds = rows
-    .map((r) => (r.content as Record<string, unknown>).posterAssetId)
-    .filter((id): id is string => typeof id === "string" && id.length > 0);
-  const posters = posterIds.length
-    ? await db.mediaAsset.findMany({ where: { id: { in: posterIds } } })
+  const idOf = (v: unknown) =>
+    typeof v === "string" && v.length > 0 ? [v] : [];
+  const idsOf = (v: unknown) =>
+    Array.isArray(v)
+      ? v.filter((id): id is string => typeof id === "string")
+      : [];
+  const wanted = rows.flatMap((r) => {
+    const c = r.content as Record<string, unknown>;
+    return [
+      ...idOf(c.posterAssetId),
+      ...idOf(c.videoAssetId),
+      ...idsOf(c.slideAssetIds),
+      ...idsOf(c.pictureAssetIds),
+    ];
+  });
+  const assets = wanted.length
+    ? await db.mediaAsset.findMany({
+        where: { id: { in: [...new Set(wanted)] } },
+      })
     : [];
+  const byId = new Map(assets.map((a) => [a.id, a]));
+  const list = (v: unknown) =>
+    idsOf(v)
+      .map((id) => media(byId.get(id)))
+      .filter((m): m is MediaView => m !== null);
   return rows.map((row) => {
     const content = row.content as Record<string, unknown>;
-    const poster = posters.find((p) => p.id === content.posterAssetId);
     return {
       type: row.type as HomeSectionType,
       visible: row.visible,
       heading: (content.heading as Localized | null) ?? null,
       intro: (content.intro as Localized | null) ?? null,
       subheading: (content.subheading as Localized | null) ?? null,
-      videoPath: typeof content.videoPath === "string" ? content.videoPath : null,
-      poster: media(poster),
+      // Older rows have no heroMedia: a saved film meant video.
+      heroMedia:
+        content.heroMedia === "video" ||
+        (!content.heroMedia && (content.videoPath || content.videoAssetId))
+          ? "video"
+          : "images",
+      slides: list(content.slideAssetIds),
+      video: media(
+        typeof content.videoAssetId === "string"
+          ? byId.get(content.videoAssetId)
+          : null,
+      ),
+      videoPath:
+        typeof content.videoPath === "string" ? content.videoPath : null,
+      poster: media(
+        typeof content.posterAssetId === "string"
+          ? byId.get(content.posterAssetId)
+          : null,
+      ),
+      pictures: list(content.pictureAssetIds),
     };
   });
 }
@@ -163,55 +309,30 @@ export async function getHomeSections(): Promise<HomeSectionView[]> {
 export type HallView = {
   slug: string;
   name: Localized;
-  summary: Localized | null;
   description: Localized | null;
-  areaSqFt: number | null;
-  ceilingHeightFt: string | null;
-  facilities: { key: string; note?: string }[];
-  eventTypeKeys: string[];
-  slotsInfo: Localized | null;
-  hero: MediaView | null;
-  floorPlan: MediaView | null;
   images: MediaView[];
-  tourUrl: string | null;
-  seo: { title?: Localized; description?: Localized } | null;
-  capacities: { layout: string; minGuests: number | null; maxGuests: number | null }[];
 };
 
 export async function listHalls(): Promise<HallView[]> {
   "use cache";
   cms();
   const rows = await db.hall.findMany({
-    where: { published: true },
+    where: { published: true, active: true },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    include: { heroAsset: true, floorPlanAsset: true, capacities: true },
   });
-  const images = await placementsFor("hall", rows.map((r) => r.id));
+  const images = await placementsFor(
+    "hall",
+    rows.map((r) => r.id),
+  );
   return rows.map((row) => ({
     slug: row.slug,
     name: row.name as Localized,
-    summary: (row.summary as Localized | null) ?? null,
     description: (row.description as Localized | null) ?? null,
-    areaSqFt: row.areaSqFt,
-    ceilingHeightFt: row.ceilingHeightFt ? row.ceilingHeightFt.toString() : null,
-    facilities: (row.facilities as HallView["facilities"]) ?? [],
-    eventTypeKeys: (row.eventTypeKeys as string[]) ?? [],
-    slotsInfo: (row.slotsInfo as Localized | null) ?? null,
-    hero: media(row.heroAsset),
-    floorPlan: media(row.floorPlanAsset),
     images: images.get(row.id) ?? [],
-    tourUrl: row.tourUrl,
-    seo: (row.seo as HallView["seo"]) ?? null,
-    capacities: row.capacities.map((c) => ({ layout: c.layout, minGuests: c.minGuests, maxGuests: c.maxGuests })),
   }));
 }
 
-export async function getHall(slug: string): Promise<HallView | null> {
-  const halls = await listHalls();
-  return halls.find((h) => h.slug === slug) ?? null;
-}
-
-// ─── Catering, décor, packages, gallery, dates ─────────────────────────────
+// ─── Catering, décor, gallery, dates ─────────────────────────────
 
 export type MenuView = {
   id: string;
@@ -242,7 +363,12 @@ export async function listPublicMenus(): Promise<MenuView[]> {
   }));
 }
 
-export type DecorThemeView = { slug: string; name: Localized; description: Localized | null; images: MediaView[] };
+export type DecorThemeView = {
+  slug: string;
+  name: Localized;
+  description: Localized | null;
+  images: MediaView[];
+};
 
 export async function listDecorThemes(): Promise<DecorThemeView[]> {
   "use cache";
@@ -251,7 +377,10 @@ export async function listDecorThemes(): Promise<DecorThemeView[]> {
     where: { published: true },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
-  const images = await placementsFor("decor_theme", rows.map((r) => r.id));
+  const images = await placementsFor(
+    "decor_theme",
+    rows.map((r) => r.id),
+  );
   return rows.map((r) => ({
     slug: r.slug,
     name: r.name as Localized,
@@ -260,40 +389,10 @@ export async function listDecorThemes(): Promise<DecorThemeView[]> {
   }));
 }
 
-export type PackageView = {
-  slug: string;
-  name: Localized;
-  description: Localized | null;
-  inclusions: Localized | null;
-  addOns: Localized | null;
-  terms: Localized | null;
-  /** Only present when an administrator enabled public prices. */
-  publicPrice: string | null;
-  publicPriceNote: Localized | null;
-};
-
-export async function listPackages(): Promise<PackageView[]> {
-  "use cache";
-  cms();
-  const rows = await db.package.findMany({
-    where: { published: true },
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-  });
-  return rows.map((p) => ({
-    slug: p.slug,
-    name: p.name as Localized,
-    description: (p.description as Localized | null) ?? null,
-    inclusions: (p.inclusions as Localized | null) ?? null,
-    addOns: (p.addOns as Localized | null) ?? null,
-    terms: (p.terms as Localized | null) ?? null,
-    publicPrice: p.showPublicPrice && p.publicPrice ? p.publicPrice.toFixed(2) : null,
-    publicPriceNote: p.showPublicPrice ? ((p.publicPriceNote as Localized | null) ?? null) : null,
-  }));
-}
-
 export type GalleryView = {
   categories: { key: string; name: Localized }[];
-  items: { categoryKey: string; featured: boolean; asset: MediaView }[];
+  /** Newest first. */
+  items: { categoryKey: string; asset: MediaView }[];
 };
 
 export async function getGallery(): Promise<GalleryView> {
@@ -302,29 +401,19 @@ export async function getGallery(): Promise<GalleryView> {
   const [categories, items] = await Promise.all([
     db.galleryCategory.findMany({ orderBy: { sortOrder: "asc" } }),
     db.galleryItem.findMany({
-      orderBy: [{ featured: "desc" }, { sortOrder: "asc" }, { createdAt: "desc" }],
+      orderBy: { createdAt: "desc" },
       include: { asset: true, category: true },
     }),
   ]);
   return {
-    categories: categories.map((c) => ({ key: c.key, name: c.name as Localized })),
+    categories: categories.map((c) => ({
+      key: c.key,
+      name: c.name as Localized,
+    })),
     items: items
       .filter((i) => i.asset.kind === "IMAGE")
-      .map((i) => ({ categoryKey: i.category.key, featured: i.featured, asset: media(i.asset)! })),
+      .map((i) => ({ categoryKey: i.category.key, asset: media(i.asset)! })),
   };
-}
-
-export type DateView = { date: string; label: Localized; note: Localized | null };
-
-export async function listAuspiciousDates(): Promise<DateView[]> {
-  "use cache";
-  cms();
-  const rows = await db.auspiciousDate.findMany({ where: { published: true }, orderBy: { date: "asc" } });
-  return rows.map((d) => ({
-    date: d.date.toISOString().slice(0, 10),
-    label: d.label as Localized,
-    note: (d.note as Localized | null) ?? null,
-  }));
 }
 
 export type EventTypeView = { key: string; label: Localized };
@@ -371,5 +460,85 @@ export async function getPublicContact(): Promise<PublicContact> {
     officeHours: business.officeHours,
     contact,
     responseTimePromise: enquiry.responseTimePromise,
+  };
+}
+
+// ─── Blog ───────────────────────────────────────────────────────────────────
+
+export type BlogPostSummaryView = {
+  slug: string;
+  title: Localized;
+  summary: Localized | null;
+  cover: MediaView | null;
+  author: string;
+  category: { key: string; name: Localized };
+  tags: string[];
+  publishedAt: string | null;
+  /** Publication day in India ("YYYY-MM-DD"), for display without reading the clock. */
+  publishedOn: string | null;
+  updatedAt: string;
+};
+
+export type BlogPostView = BlogPostSummaryView & {
+  content: Localized;
+  seo: { title: Localized | null; description: Localized | null };
+};
+
+type BlogRow = Awaited<
+  ReturnType<
+    typeof db.blogPost.findFirstOrThrow<{ include: { category: true } }>
+  >
+>;
+
+function blogSummary(
+  row: BlogRow,
+  cover: MediaView | null,
+): BlogPostSummaryView {
+  return {
+    slug: row.slug,
+    title: row.title as Localized,
+    summary: (row.summary as Localized | null) ?? null,
+    cover,
+    author: row.author,
+    category: { key: row.category.key, name: row.category.name as Localized },
+    tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
+    publishedAt: row.publishedAt?.toISOString() ?? null,
+    publishedOn: row.publishedAt ? istDateKey(row.publishedAt) : null,
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+/** Published posts, newest first. */
+export async function listBlogPosts(): Promise<BlogPostSummaryView[]> {
+  "use cache";
+  cms();
+  const rows = await db.blogPost.findMany({
+    where: { published: true },
+    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+    include: { category: true },
+  });
+  const covers = await placementsFor(
+    "blog_post",
+    rows.map((r) => r.id),
+  );
+  return rows.map((r) => blogSummary(r, covers.get(r.id)?.[0] ?? null));
+}
+
+export async function getBlogPost(slug: string): Promise<BlogPostView | null> {
+  "use cache";
+  cms();
+  const row = await db.blogPost.findFirst({
+    where: { slug, published: true },
+    include: { category: true },
+  });
+  if (!row) return null;
+  const covers = await placementsFor("blog_post", [row.id]);
+  return {
+    ...blogSummary(row, covers.get(row.id)?.[0] ?? null),
+    content: row.content as Localized,
+    seo: {
+      title: (row.metaTitle as Localized | null) ?? null,
+      description: (row.metaDescription as Localized | null) ?? null,
+    },
   };
 }

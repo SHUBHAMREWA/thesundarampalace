@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
 import { deliverPendingOutbox } from "@/server/services/notifications";
 import { releaseExpiredHolds, sendHoldReminders } from "@/server/services/reservations";
+import { deliverWhatsApp } from "@/server/services/whatsapp/campaigns";
 
 /**
  * Called every hour by .github/workflows/scheduler.yml. Hold expiry also
@@ -18,5 +19,6 @@ export async function POST(request: NextRequest) {
   const holdsReleased = await releaseExpiredHolds(now);
   const holdRemindersSent = await sendHoldReminders(now);
   const outbox = await deliverPendingOutbox(50, now);
-  return NextResponse.json({ ok: true, holdsReleased, holdRemindersSent, outboxProcessed: outbox.processed });
+  const whatsapp = await deliverWhatsApp(300, now);
+  return NextResponse.json({ ok: true, holdsReleased, holdRemindersSent, outboxProcessed: outbox.processed, whatsappProcessed: whatsapp.processed });
 }

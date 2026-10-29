@@ -3,19 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { CMS_SECTIONS } from "@/components/crm/nav";
 import { cn } from "@/lib/utils";
 
-export const CMS_SECTIONS = [
-  { href: "/admin/cms/pages", label: "Pages" },
-  { href: "/admin/cms/home", label: "Homepage" },
-  { href: "/admin/cms/halls", label: "Venues" },
-  { href: "/admin/cms/menus", label: "Menus" },
-  { href: "/admin/cms/decor", label: "Décor" },
-  { href: "/admin/cms/packages", label: "Packages" },
-  { href: "/admin/cms/gallery", label: "Gallery" },
-  { href: "/admin/cms/dates", label: "Dates" },
-  { href: "/admin/cms/media", label: "Media" },
-] as const;
 
 export function CmsTabs() {
   const pathname = usePathname();

@@ -20,7 +20,7 @@ Main threats: public form spam and abuse; staff account takeover; a staff member
 
 - Better Auth with email + password for staff only. No public sign-up: Admins invite users.
 - Passwords: minimum 12 characters, checked against a breached-password list, hashed by the library (scrypt/argon2).
-- **TOTP 2FA mandatory** for Super Admin, Admin and Accounts; optional but encouraged for others. Backup codes shown once.
+- **TOTP 2FA is optional for everyone** (owner decision, 24 Oct 2026, replacing the earlier "mandatory for Super Admin, Admin and Accounts"). Each user turns it on or off for themselves from the account menu (Two-factor authentication); turning it off needs their password, and both changes are audit-logged (`auth.2fa_enabled` / `auth.2fa_disabled`). Backup codes shown once. The per-role switch `Role.requires2fa` still exists (all roles `false` in `src/lib/permissions/registry.ts`); setting it to `true` and re-running the seed makes 2FA mandatory again for that role. Recommended for Super Admin and Accounts before launch.
 - Database sessions, cookies `HttpOnly; Secure; SameSite=Lax`; idle timeout 8 h, absolute 7 days (configurable); session rotated on sign-in, 2FA and role change. Admins can revoke all sessions for a user.
 - Login and 2FA endpoints are rate-limited per IP and per account; repeated failures add delay and alert Super Admins.
 
@@ -28,7 +28,7 @@ Main threats: public form spam and abuse; staff account takeover; a staff member
 
 - Permission keys live in a code registry (`src/lib/permissions/registry.ts`) and are seeded into the DB. Roles are sets of permissions. **Code checks permissions, never role names.**
 - Every Server Action and Route Handler: authenticate → `assertPermission(user, key, resource?)` → Zod validation → service. No "internal" exceptions.
-- Data shaping in `src/server/policies/`: Operations never receives payment fields; Kitchen receives only kitchen-sheet data for upcoming events.
+- Data shaping in `src/server/policies/`: Operations never receives payment fields. The Food Menu document (`pdf.menu`) never contains prices, so it can go to the customer and the partner caterer.
 - A table-driven test walks the whole matrix and asserts 403 for every role × action that is not allowed (`tests/integration/permissions.test.ts`).
 - CRM pages render the 403 screen with `forbidden()`. Because Next.js 16 streams pages, the HTTP status of such a page can be 200; the e2e test asserts that the 403 screen renders and no protected data is in the response. Route handlers and server actions return real 401/403 statuses.
 
@@ -36,28 +36,28 @@ Main threats: public form spam and abuse; staff account takeover; a staff member
 
 ✓ = granted · own = only records assigned to them · — = denied. Final matrix confirmed with the owner in Phase 1.
 
-| Permission | Super Admin | Admin | Manager | Sales | Accounts | Operations | Kitchen |
-|---|---|---|---|---|---|---|---|
-| `settings.manage`, `users.manage`, `roles.manage` | ✓ | users only | — | — | — | — | — |
-| `cms.edit`, `cms.publish` | ✓ | ✓ | — | — | — | — | — |
-| `leads.read` / `leads.edit` | ✓ | ✓ | ✓ | own + unassigned | — | — | — |
-| `leads.assign` | ✓ | ✓ | ✓ | — | — | — | — |
+| Permission | Super Admin | Admin | Manager | Sales | Accounts | Operations |
+|---|---|---|---|---|---|---|
+| `settings.manage`, `users.manage`, `roles.manage` | ✓ | users only | — | — | — | — |
+| `cms.edit`, `cms.publish` | ✓ | ✓ | — | — | — | — |
+| `leads.read` / `leads.edit` | ✓ | ✓ | ✓ | own + unassigned | — | — |
+| `leads.assign` | ✓ | ✓ | ✓ | — | — | — |
 | `customers.read` (contact fields) | ✓ | ✓ | ✓ | ✓ | ✓ | name + phone of assigned events | — |
-| `customers.personal.read` (DOB, marital, address) | ✓ | ✓ | ✓ | — | — | — | — |
-| `customers.merge` | ✓ | ✓ | ✓ | — | — | — | — |
+| `customers.personal.read` (DOB, marital, address) | ✓ | ✓ | ✓ | — | — | — |
+| `customers.merge` | ✓ | ✓ | ✓ | — | — | — |
 | `bookings.read` / `bookings.edit` | ✓ | ✓ | ✓ | ✓ / quotation stage | read | assigned | — |
-| `bookings.confirm`, `holds.place` | ✓ | ✓ | ✓ | holds only | — | — | — |
-| `bookings.override_conflict` | ✓ | ✓ | ✓ (with reason) | — | — | — | — |
-| `quotations.create` / `quotations.accept` | ✓ | ✓ | ✓ | ✓ / — | — | — | — |
-| `payments.create`, `refunds.create`, `deposits.manage` | ✓ | ✓ | — | — | ✓ | — | — |
-| `invoices.issue`, `credit_notes.issue` | ✓ | ✓ | — | — | ✓ | — | — |
-| `documents.sensitive.read` / `.upload` | ✓ | ✓ | ✓ | — | — | — | — |
-| `pdf.generate` | ✓ | ✓ | ✓ | quotations | financial docs | function sheets | kitchen sheets |
-| `reports.financial` | ✓ | ✓ | ✓ | — | ✓ | — | — |
-| `reports.sales` | ✓ | ✓ | ✓ | own | — | — | — |
+| `bookings.confirm`, `holds.place` | ✓ | ✓ | ✓ | holds only | — | — |
+| `bookings.override_conflict` | ✓ | ✓ | ✓ (with reason) | — | — | — |
+| `quotations.create` / `quotations.accept` | ✓ | ✓ | ✓ | ✓ / — | — | — |
+| `payments.create`, `refunds.create`, `deposits.manage` | ✓ | ✓ | — | — | ✓ | — |
+| `invoices.issue`, `credit_notes.issue` | ✓ | ✓ | — | — | ✓ | — |
+| `documents.sensitive.read` / `.upload` | ✓ | ✓ | ✓ | — | — | — |
+| `pdf.generate` | ✓ | ✓ | ✓ | quotations | financial docs | quotations, food menus | financial docs | function sheets, food menus |
+| `reports.financial` | ✓ | ✓ | ✓ | — | ✓ | — |
+| `reports.sales` | ✓ | ✓ | ✓ | own | — | — |
 | `tasks.manage` | ✓ | ✓ | ✓ | own | own | own | — |
-| `audit.read` | ✓ | ✓ | — | — | — | — | — |
-| `privacy.requests` | ✓ | ✓ | — | — | — | — | — |
+| `audit.read` | ✓ | ✓ | — | — | — | — |
+| `privacy.requests` | ✓ | ✓ | — | — | — | — |
 
 ## 4. Files and private documents
 
@@ -65,7 +65,7 @@ Main threats: public form spam and abuse; staff account takeover; a staff member
 - EXIF (including GPS) stripped from public images.
 - Public media → Cloudinary signed upload. Private documents → `src/server/storage/private.ts`, stored in the `private_blob` table; keys are random UUIDs, never names. There is no storage URL at all.
 - Download: `/api/documents/[id]/download` → session → permission → audit log → the server streams the file (or, with R2, redirects to a presigned URL valid ≤ 5 minutes). Storage URLs are never stored or rendered in HTML.
-- Phase 3 implementation: uploads need `documents.sensitive.upload`, are sniffed by magic bytes (JPEG/PNG/WebP/PDF), limited to 4 MB, and need a stated purpose. `/api/private-files/[id]` and `/api/documents/[id]` check the session (including required 2FA), the permission and booking visibility, write `document.viewed` / `document.downloaded` audit entries with IP, and stream with `no-store`, `nosniff` and a sandbox CSP. Tests: wrong type rejected, other roles get 403, every view is audit-logged.
+- Phase 3 implementation: uploads need `documents.sensitive.upload`, are sniffed by magic bytes (JPEG/PNG/WebP/PDF), limited to 4 MB, and need a stated purpose. `/api/private-files/[id]` and `/api/documents/[id]` check the session (and 2FA when a role requires it), the permission and booking visibility, write `document.viewed` / `document.downloaded` audit entries with IP, and stream with `no-store`, `nosniff` and a sandbox CSP. Tests: wrong type rejected, other roles get 403, every view is audit-logged.
 - Identity documents: optional, only for a configured purpose; masked Aadhaar preferred; no Aadhaar number columns anywhere; excluded from PDFs by default; WhatsApp/email never attach them.
 
 ### Money and documents (Phase 3)
@@ -74,7 +74,7 @@ Main threats: public form spam and abuse; staff account takeover; a staff member
 - Payments, refunds, deposits, charges, invoices and credit notes carry an idempotency key, so a double submit records once.
 - No card numbers, CVV or UPI PINs are ever asked for or stored.
 - Documents are built from escaped data in trusted templates; the field picker drops any field the user's role can't see, and sensitive fields (address, bride/groom, internal notes) start unticked. The preview route sends a CSP with no scripts and no network access.
-- Operations staff see only bookings they are assigned to and never money; kitchen staff see only confirmed functions' menus and plate counts.
+- Operations staff see only bookings they are assigned to and never money. There is no Kitchen role: the venue has no kitchen of its own and food is served by a partner caterer (owner decision, 26 Oct 2026).
 
 ## 5. Web security
 
@@ -101,9 +101,9 @@ The design follows the Digital Personal Data Protection Act, 2023. The DPDP Rule
 - **Notice and consent at collection.** Each form shows a short notice and a purpose-specific, unticked consent checkbox. We store `ConsentRecord { subject, purpose, granted, noticeVersion, source, timestamp }`. Purposes: `contact`, `brochure`, `site_visit`, `marketing_whatsapp`, `marketing_email`, `greetings`.
 - **Minimisation.** Enquiry asks only name and phone as mandatory. DOB and anniversary are not collected unless greetings are enabled and the customer opts in.
 - **Use limited to purpose.** NotificationService refuses marketing/greeting messages without the matching consent and logs `SKIPPED_NO_CONSENT`.
-- **Data principal rights.** Admin workflow (`DataSubjectRequest`) for access (export), correction and deletion. Deletion anonymizes personal fields but keeps financial and tax records for the legally required period.
+- **Data principal rights.** The CRM screen for data requests was removed on 27 Oct 2026 (owner request). Requests for access, correction or deletion are handled by hand: staff correct the customer record, and customers without bookings can be deleted from the Customers list (`customers.delete`, reason audit-logged). Customers with bookings stay, because financial and tax records must be kept. The old `data_subject_request` table is kept unused as history.
 - **Withdrawal.** Withdrawing consent is as easy as giving it (link in messages and a CRM action); real-wedding stories unpublish automatically.
-- **Retention.** Periods per data type in Settings; a daily job flags records past retention for review.
+- **Retention.** Periods below are proposals for the accountant/counsel; the CRM no longer has a retention review screen (removed 27 Oct 2026).
 - **Professional review.** Privacy policy, notices and consent text must be reviewed by a qualified professional before production.
 
 ### Proposed retention defaults (to be confirmed by accountant / counsel)

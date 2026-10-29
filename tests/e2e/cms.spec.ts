@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 import { E2E_USERS } from "./fixtures";
-import { signInWithNew2fa } from "./helpers";
+import { signInToDashboard } from "./helpers";
 
 test("CMS edits reach the static website immediately (test #23)", async ({ page }) => {
-  await signInWithNew2fa(page, E2E_USERS.admin.email);
+  await signInToDashboard(page, E2E_USERS.admin.email);
 
   await test.step("an Admin adds a venue", async () => {
     await page.goto("/admin/cms/halls/new");

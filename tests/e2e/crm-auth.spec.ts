@@ -39,10 +39,15 @@ test.describe.serial("CRM authentication and permissions", () => {
     await expect(page.getByRole("alert").filter({ hasText: "incorrect" })).toBeVisible();
   });
 
-  test("Super Admin must set up 2FA before using the CRM", async ({ page }) => {
+  test("2FA is optional: Super Admin uses the CRM without it, then turns it on", async ({ page }) => {
     await signIn(page, E2E_USERS.superAdmin.email);
+    await expect(page).toHaveURL(/\/admin$/);
+    await expect(page.getByRole("heading", { name: /Welcome, E2E/ })).toBeVisible();
+
+    await page.getByRole("button", { name: "Account menu" }).click();
+    await page.getByRole("menuitem", { name: "Two-factor authentication" }).click();
     await expect(page).toHaveURL(/\/admin\/security\/two-factor$/);
-    await expect(page.getByText("Your role requires two-factor authentication")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Not now, back to the dashboard" })).toBeVisible();
 
     await page.getByLabel("Confirm your password").fill(E2E_PASSWORD);
     await page.getByRole("button", { name: "Continue" }).click();
@@ -54,7 +59,8 @@ test.describe.serial("CRM authentication and permissions", () => {
     await page.getByLabel("Authentication code").fill(lastCode);
     await page.getByRole("button", { name: "Turn on two-factor authentication" }).click();
     await expect(page).toHaveURL(/\/admin$/);
-    await expect(page.getByRole("heading", { name: /Welcome, E2E/ })).toBeVisible();
+    // Settings sits in the sidebar's Admin menu.
+    await page.getByRole("button", { name: "Admin", exact: true }).click();
     await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
   });
 
@@ -64,9 +70,11 @@ test.describe.serial("CRM authentication and permissions", () => {
     await signIn(page, E2E_USERS.superAdmin.email);
     await expect(page).toHaveURL(/\/admin\/sign-in\/two-factor$/);
     // Use a code from a new 30-second window so it differs from the setup code.
-    await page.getByLabel("Authentication code").fill(await freshTotp(totpSecret, lastCode));
+    lastCode = await freshTotp(totpSecret, lastCode);
+    await page.getByLabel("Authentication code").fill(lastCode);
     await page.getByRole("button", { name: "Verify" }).click();
     await expect(page).toHaveURL(/\/admin$/);
+    await page.getByRole("button", { name: "Admin", exact: true }).click();
     await page.getByRole("link", { name: "Settings" }).click();
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
     await expect(page.getByText("Business details", { exact: true })).toBeVisible();
@@ -86,6 +94,26 @@ test.describe.serial("CRM authentication and permissions", () => {
     await page.goto("/en/contact");
     await expect(page.getByRole("link", { name: "Chat on WhatsApp" }).first()).toHaveAttribute("href", /^https:\/\/wa\.me\/919000022233/);
     await expect(page.getByText("Every day, 10:00–19:00")).toBeVisible();
+  });
+
+  test("Super Admin turns 2FA off again and then signs in with only a password", async ({ page }) => {
+    test.slow();
+    await signIn(page, E2E_USERS.superAdmin.email);
+    await expect(page).toHaveURL(/\/admin\/sign-in\/two-factor$/);
+    lastCode = await freshTotp(totpSecret, lastCode);
+    await page.getByLabel("Authentication code").fill(lastCode);
+    await page.getByRole("button", { name: "Verify" }).click();
+    await expect(page).toHaveURL(/\/admin$/);
+
+    await page.goto("/admin/security/two-factor");
+    await expect(page.getByText("Two-factor authentication is on for your account.")).toBeVisible();
+    await page.getByLabel("Confirm your password").fill(E2E_PASSWORD);
+    await page.getByRole("button", { name: "Turn off two-factor authentication" }).click();
+    await expect(page.getByRole("button", { name: "Continue" })).toBeVisible();
+
+    await page.context().clearCookies();
+    await signIn(page, E2E_USERS.superAdmin.email);
+    await expect(page).toHaveURL(/\/admin$/);
   });
 
   test("Sales user can use the dashboard but gets 403 on settings", async ({ page }) => {

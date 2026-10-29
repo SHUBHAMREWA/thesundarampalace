@@ -29,6 +29,8 @@ These affect setup, not just content. Ask first.
 | Brand name styling (exact spelling/casing in English, and the official Hindi spelling) | Phase 2 | Missing | Do not guess the Hindi spelling. |
 | Brand story / heritage (true facts only: year established, family history, etc.) | Phase 2 | Missing | No "best venue in…" style claims. |
 | Tagline (if any) | Phase 2 | Missing | Optional. |
+| Owner photo | Phase 2 | Missing | Owner: Mr. Vivek Garg. His welcome message was received 28 Oct 2026 and is on the About page; the portrait frame shows his initials until the photo is uploaded in Admin → Website → About (header photo is chosen there too). Hindi version of the message written by the developer — needs his review. |
+| About page text (venue description, location, events hosted) | Phase 2 | **Received 2026-10-28** | Taken from the old site thesundarampalace.com; "best/top" claims left out. Hindi version written by the developer — needs review by a fluent speaker. |
 
 ## 2. Photos, video and media
 
@@ -41,7 +43,7 @@ These affect setup, not just content. Ask first.
 | Venue film 30–60 s (for the hero; we compress to ≤ ~3 MB) | Phase 2 | Missing | Poster image fallback is used until then. |
 | Drone shots (only if local permissions were obtained) | Phase 5 | Missing | |
 | Photographer credit and usage permission for every wedding photo | Phase 2 / 5 | Missing | Stored per asset in the CMS. |
-| 360° tours or walkthrough videos | Phase 5 | Missing | Optional. |
+| ~~360° tours or walkthrough videos~~ | — | Not needed | Venue pages show only a title, description and photos (owner decision 28 Oct 2026). |
 
 ## 3. Venue spaces (per hall / lawn)
 
@@ -50,20 +52,20 @@ Repeat for every space.
 | Item | Needed by | Status | Notes |
 |---|---|---|---|
 | Name and short description | Phase 2 | Missing | |
-| Area (sq ft) and ceiling height | Phase 2 | Missing | Show only if verified. |
-| Capacity per layout: theatre, round table/banquet, floating/standing, cluster | Phase 2 | Missing | Min/max per layout. |
-| Facilities: AC, power backup, stage, bridal/green room, lift, ramps/accessibility | Phase 2 | Missing | |
+| ~~Area (sq ft) and ceiling height~~ | — | Not needed | Venue pages show only a title, description and photos (owner decision 28 Oct 2026). |
+| ~~Capacity per layout: theatre, round table/banquet, floating/standing, cluster~~ | — | Not needed | Venue pages show only a title, description and photos (owner decision 28 Oct 2026). |
+| ~~Facilities: AC, power backup, stage, bridal/green room, lift, ramps/accessibility~~ | — | Not needed | Venue pages show only a title, description and photos (owner decision 28 Oct 2026). |
 | Parking capacity (cars / two-wheelers) | Phase 2 | Missing | |
-| Floor plan (sketch with measurements is fine) | Phase 2 | Missing | |
-| Which spaces can be combined (e.g. Hall A + Hall B) | Phase 3 | Missing | Entered in CRM → Catalog and pricing → Halls and slots. Affects conflict detection. |
+| ~~Floor plan (sketch with measurements is fine)~~ | — | Not needed | Venue pages show only a title, description and photos (owner decision 28 Oct 2026). |
+| Which spaces can be combined (e.g. Hall A + Hall B) | Phase 3 | Missing | Affects conflict detection. The CRM screen for it was removed with "Halls and slots" (26 Oct 2026); ask the developer to set it up if needed. |
 | Suitable event types per space | Phase 2 | Missing | |
 
 ## 4. Slots, timings and house rules
 
 | Item | Needed by | Status | Notes |
 |---|---|---|---|
-| Slot definitions per hall (Morning / Evening / Full day / custom) with exact times | Phase 3 | Missing | No slots are seeded; entered in Catalog and pricing. Staff can use custom times meanwhile. |
-| Setup buffer and teardown buffer per hall (hours) | Phase 3 | Missing | 0 until entered (Catalog and pricing → Halls and slots). |
+| ~~Slot definitions per hall~~ | — | Not needed | Owner decision 26 Oct 2026: staff type each function's times. |
+| ~~Setup / teardown buffer per hall~~ | — | Not needed | Owner decision 26 Oct 2026: always 0; include setup time in the function's typed times if needed. |
 | Music / DJ cut-off time | Phase 2 (policy page) | Missing | |
 | Other house rules (outside vendors, fireworks, alcohol, decoration restrictions, etc.) | Phase 2 | Missing | Only what the business states. |
 | Site-visit days and time windows | Phase 5 (Phase 2 form asks preferred date) | Missing | |
@@ -76,21 +78,18 @@ Repeat for every space.
 | Which categories are offered: Veg, Jain, Non-veg | Phase 2 | Missing | Non-veg pages hidden unless offered. |
 | Menus by category and course (welcome drinks, starters, mains, breads, rice, desserts, live counters) | Phase 2 (public), Phase 3 (CRM) | Missing | |
 | Menu packages: per-plate rate and selection rules ("choose 3 starters") | Phase 3 | Missing | |
-| Minimum guaranteed plates (by package / hall / slot) | Phase 3 | Missing | |
+| Minimum guaranteed plates (per menu package) | Phase 3 | Missing | |
 | Guest-count lock: how many days before the event | Phase 3 | Missing | |
 | Extra-plate rate after the event; is any shortfall refunded? | Phase 3 | Missing | |
 | Outside-caterer policy | Phase 2 | Missing | |
 
-## 6. Décor, services and packages
+## 6. Décor and services
 
 | Item | Needed by | Status | Notes |
 |---|---|---|---|
 | Décor themes offered; in-house vs partner decorators | Phase 2 | Missing | |
 | Services offered (lighting/sound, DJ, photography via partners, etc.) | Phase 2 | Missing | No room booking. |
-| Packages: name, inclusions, add-ons, terms | Phase 2 | Missing | |
-| Which package prices (if any) may be shown publicly | Phase 2 | Missing | Prices hidden by default. |
-| Season / weekend / high-demand date pricing rules | Phase 3 | Missing | Optional. |
-| Popular / auspicious wedding dates for the season | Phase 2 | Missing | Business supplies the list; we do not compute muhurat dates. |
+| ~~Popular / auspicious wedding dates for the season~~ | — | Not needed | Feature removed (owner decision 28 Oct 2026). |
 | Partner vendors (décor, photography, DJ…) | Phase 4 | Missing | |
 
 ## 7. Commercial policies
@@ -106,7 +105,6 @@ Repeat for every space.
 | Quotation validity (placeholder 15 days) | Phase 3 | Default | |
 | Are unserved guaranteed plates ever refunded? (placeholder: no) | Phase 3 | Default | |
 | Per-plate rates, minimum plates and which menu courses are "choose N" | Phase 3 | Missing | Catalog and pricing → Menu packages. |
-| Season / weekend / muhurat price adjustments | Phase 3 | Missing | Optional pricing rules. |
 | Standard prices of chargeable services (hall rental, décor, lighting…) | Phase 3 | Missing | Catalog and pricing → Services; can also be typed per quotation. |
 | Quotation terms, payment terms, booking conditions, bank/UPI details for documents | Phase 3 | Missing | Settings → Document wording; documents print "To be confirmed" until then. |
 | Response-time promise shown after enquiry (e.g. "within 2 working hours") | Phase 2 | Missing | Shown on the success screen. |
@@ -118,7 +116,6 @@ Repeat for every space.
 |---|---|---|---|
 | Legal name, GSTIN, registered address, state code | Phase 3 | Missing | **Blocks tax invoices** (the CRM refuses to issue one without them). Settings → Business details. |
 | **GST registration type: regular or composition scheme?** | Phase 3 | Missing | A composition taxpayer issues a *bill of supply*, not a tax invoice. Changes the invoice design. |
-| SAC code and GST rate for each service category (hall rental, catering, décor, sound/light, other) | Phase 3 | Missing | Never hardcoded; entered as tax categories in Catalog and pricing → Taxes. No tax category exists until then, so quotations can't be priced. |
 | Are quoted prices tax-inclusive or tax-exclusive by default? | Phase 3 | Missing | |
 | Invoice number prefix and format; credit-note prefix | Phase 3 | Default | Placeholders `SP/26-27/0001` and `SPCN/26-27/0001` (GST limit: 16 characters). Restart each April. |
 | Round invoice totals to the nearest rupee? | Phase 3 | Missing | |
@@ -132,6 +129,7 @@ Repeat for every space.
 | Exact address and Google Maps pin | Phase 2 | Missing | |
 | Phone number(s) for click-to-call | Phase 2 | Missing | |
 | WhatsApp number and prefilled message text | Phase 2 | Missing | Is this number on the WhatsApp Business app today? Matters for the API later. |
+| WhatsApp API choice and account (Meta Cloud API or Twilio), verified Meta Business account, approved message templates, your per-message rates | WhatsApp bulk | Missing | Enter keys in CRM Settings → WhatsApp (they are tested on save). Templates are created and approved in Meta WhatsApp Manager or Twilio Content Template Builder. |
 | Public email address | Phase 2 | Missing | |
 | Office / enquiry hours | Phase 2 | Missing | |
 | Directions text (from railway station, bus stand, airport) | Phase 2 | Missing | |
@@ -142,7 +140,7 @@ Repeat for every space.
 
 | Item | Needed by | Status | Notes |
 |---|---|---|---|
-| Staff list with roles (Super Admin, Admin, Manager, Sales, Accounts, Operations, Kitchen) | Phase 1 (admin), Phase 2 (sales) | Missing | |
+| Staff list with roles (Super Admin, Admin, Manager, Sales, Accounts, Operations) | Phase 1 (admin), Phase 2 (sales) | Missing | |
 | Default assignee for new leads and who gets new-lead alerts | Phase 2 | Missing | |
 | Who writes or reviews Hindi copy | Phase 2 (UI labels), Phase 5 | Missing | The Hindi site currently falls back to English labels (`messages/hi.json` is almost empty). Legal text is never machine-translated. |
 
@@ -170,6 +168,6 @@ Repeat for every space.
 | Item | Needed by | Status | Notes |
 |---|---|---|---|
 | Is there an existing website/domain to redirect from? | Phase 2 | Missing | Old URLs get 301 redirects to protect search ranking. |
-| **Already-confirmed future bookings (dates, halls, slots)** | Before Phase 3 go-live | Missing | Must be entered before the CRM is used for new bookings, or double-booking checks are blind. |
+| **Already-confirmed future bookings (dates, halls, times)** | Before Phase 3 go-live | Missing | Must be entered before the CRM is used for new bookings, or double-booking checks are blind. |
 | Existing customer/enquiry lists (Excel, register) to import | Phase 3 | Missing | Imported only with a lawful basis; not into seeds. |
 | Existing invoice series for the current financial year | Phase 3 | Missing | The CRM sequence must continue from the last issued number. |

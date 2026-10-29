@@ -37,7 +37,8 @@ export async function runAction(fn: () => Promise<Partial<ActionState> | void>):
         const key = issue.path.join(".") || "form";
         if (!fieldErrors[key]) fieldErrors[key] = issue.message;
       }
-      return { ok: false, at: Date.now(), message: "Please check the highlighted fields.", fieldErrors };
+      // A whole-form error (path "form") has no field to highlight, so its text is the message.
+      return { ok: false, at: Date.now(), message: fieldErrors.form ?? "Please check the highlighted fields.", fieldErrors };
     }
     if (error instanceof ForbiddenError) {
       return { ok: false, at: Date.now(), message: "You don't have permission to do that." };

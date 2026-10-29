@@ -45,9 +45,13 @@ export function StatusForm({
   statuses: Option[];
   lostReasons: Option[];
 }) {
-  const [state, action] = useActionState(changeLeadStatusAction.bind(null, leadId), idleState);
+  const [state, action] = useActionState(
+    changeLeadStatusAction.bind(null, leadId),
+    idleState,
+  );
   const [selected, setSelected] = useState(current);
-  const isLost = statuses.find((s) => s.value === selected)?.systemKey === "LOST";
+  const isLost =
+    statuses.find((s) => s.value === selected)?.systemKey === "LOST";
   return (
     <ActionForm action={action} className="space-y-3">
       <ActionFeedback state={state} />
@@ -75,8 +79,19 @@ export function StatusForm({
   );
 }
 
-export function AssignForm({ leadId, current, staff }: { leadId: string; current: string | null; staff: Option[] }) {
-  const [state, action] = useActionState(assignLeadAction.bind(null, leadId), idleState);
+export function AssignForm({
+  leadId,
+  current,
+  staff,
+}: {
+  leadId: string;
+  current: string | null;
+  staff: Option[];
+}) {
+  const [state, action] = useActionState(
+    assignLeadAction.bind(null, leadId),
+    idleState,
+  );
   return (
     <ActionForm action={action} className="space-y-3">
       <ActionFeedback state={state} />
@@ -96,7 +111,10 @@ export function AssignForm({ leadId, current, staff }: { leadId: string; current
 }
 
 export function ActivityForm({ leadId }: { leadId: string }) {
-  const [state, action] = useActionState(addLeadActivityAction.bind(null, leadId), idleState);
+  const [state, action] = useActionState(
+    addLeadActivityAction.bind(null, leadId),
+    idleState,
+  );
   const formRef = useRef<HTMLFormElement>(null);
   return (
     <ActionForm ref={formRef} action={action} className="space-y-3">
@@ -112,7 +130,12 @@ export function ActivityForm({ leadId }: { leadId: string }) {
           { value: "NOTE", label: "Note" },
         ]}
       />
-      <TextAreaField name="note" label="What happened?" rows={3} error={state.fieldErrors?.note} />
+      <TextAreaField
+        name="note"
+        label="What happened?"
+        rows={3}
+        error={state.fieldErrors?.note}
+      />
       <SubmitButton size="sm">Log activity</SubmitButton>
     </ActionForm>
   );
@@ -142,17 +165,50 @@ export function DetailsForm({
   eventTypes: Option[];
   halls: Option[];
 }) {
-  const [state, action] = useActionState(updateLeadDetailsAction.bind(null, leadId), idleState);
+  const [state, action] = useActionState(
+    updateLeadDetailsAction.bind(null, leadId),
+    idleState,
+  );
   const e = state.fieldErrors ?? {};
   return (
     <ActionForm action={action} className="space-y-4">
       <ActionFeedback state={state} />
       <div className="grid gap-4 sm:grid-cols-2">
-        <TextField name="followUpAt" label="Next follow-up (IST)" type="datetime-local" defaultValue={defaults.followUpAt} error={e.followUpAt} />
-        <SelectField name="eventTypeKey" label="Event type" defaultValue={defaults.eventTypeKey} placeholder="—" options={eventTypes} />
-        <TextField name="preferredDate" label="Preferred date" type="date" defaultValue={defaults.preferredDate} />
-        <TextField name="guestsApprox" label="Expected guests" type="number" min={1} defaultValue={defaults.guestsApprox} error={e.guestsApprox} />
-        <TextField name="budgetEstimate" label="Estimated budget (₹)" inputMode="decimal" defaultValue={defaults.budgetEstimate} error={e.budgetEstimate} />
+        <TextField
+          name="followUpAt"
+          label="Next follow-up (IST)"
+          type="datetime-local"
+          defaultValue={defaults.followUpAt}
+          error={e.followUpAt}
+        />
+        <SelectField
+          name="eventTypeKey"
+          label="Event type"
+          defaultValue={defaults.eventTypeKey}
+          placeholder="—"
+          options={eventTypes}
+        />
+        <TextField
+          name="preferredDate"
+          label="Preferred date"
+          type="date"
+          defaultValue={defaults.preferredDate}
+        />
+        <TextField
+          name="guestsApprox"
+          label="Expected guests"
+          type="number"
+          min={1}
+          defaultValue={defaults.guestsApprox}
+          error={e.guestsApprox}
+        />
+        <TextField
+          name="budgetEstimate"
+          label="Estimated budget (₹)"
+          inputMode="decimal"
+          defaultValue={defaults.budgetEstimate}
+          error={e.budgetEstimate}
+        />
         <SelectField
           name="menuPreference"
           label="Menu preference"
@@ -164,10 +220,32 @@ export function DetailsForm({
             { value: "non_veg", label: "Non-vegetarian" },
           ]}
         />
-        <SelectField name="preferredHallId" label="Preferred venue" defaultValue={defaults.preferredHallId} placeholder="—" options={halls} />
-        <TextField name="email" label="Email" type="email" defaultValue={defaults.email} error={e.email} />
-        <TextField name="siteVisitAt" label="Site visit (IST)" type="datetime-local" defaultValue={defaults.siteVisitAt} error={e.siteVisitAt} />
-        <TextField name="siteVisitOutcome" label="Site visit outcome" defaultValue={defaults.siteVisitOutcome} />
+        <SelectField
+          name="preferredHallId"
+          label="Preferred venue"
+          defaultValue={defaults.preferredHallId}
+          placeholder="—"
+          options={halls}
+        />
+        <TextField
+          name="email"
+          label="Email"
+          type="email"
+          defaultValue={defaults.email}
+          error={e.email}
+        />
+        <TextField
+          name="siteVisitAt"
+          label="Site visit (IST)"
+          type="datetime-local"
+          defaultValue={defaults.siteVisitAt}
+          error={e.siteVisitAt}
+        />
+        <TextField
+          name="siteVisitOutcome"
+          label="Site visit outcome"
+          defaultValue={defaults.siteVisitOutcome}
+        />
       </div>
       <SubmitButton size="sm">Save details</SubmitButton>
     </ActionForm>
@@ -175,28 +253,37 @@ export function DetailsForm({
 }
 
 export function ArchiveLeadButton({ leadId }: { leadId: string }) {
-  const [state, action] = useActionState(archiveLeadAction.bind(null, leadId), idleState);
+  const [state, action] = useActionState(
+    archiveLeadAction.bind(null, leadId),
+    idleState,
+  );
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button variant="ghost" size="sm" className="text-danger">
-          Archive lead
+          Delete lead
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <ActionForm action={action} className="space-y-4">
           <AlertDialogHeader>
-            <AlertDialogTitle>Archive this lead?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this lead?</AlertDialogTitle>
             <AlertDialogDescription>
-              Use this for spam or duplicates. The lead disappears from lists but its history is kept and the action is
-              recorded in the audit log.
+              Use this for spam, test entries or duplicates. The lead disappears
+              from lists; its history is kept and the audit log records who
+              deleted it and why.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <ActionFeedback state={state} />
-          <TextField name="reason" label="Reason" required error={state.fieldErrors?.reason} />
+          <TextField
+            name="reason"
+            label="Reason"
+            required
+            error={state.fieldErrors?.reason}
+          />
           <AlertDialogFooter>
             <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
-            <SubmitButton variant="destructive">Archive</SubmitButton>
+            <SubmitButton variant="destructive">Delete lead</SubmitButton>
           </AlertDialogFooter>
         </ActionForm>
       </AlertDialogContent>

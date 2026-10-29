@@ -8,6 +8,9 @@ import { t, type Localized } from "@/lib/i18n/localized";
 
 import { MenuEditor } from "./menu-editor";
 
+// CRM pages read the session on every request (see src/app/admin/layout.tsx).
+export const instant = false;
+
 export const metadata: Metadata = { title: "Edit menu" };
 
 const line = (name: Localized, description: Localized | null, lang: "en" | "hi") => {

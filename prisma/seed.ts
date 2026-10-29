@@ -25,7 +25,29 @@ async function seedLocalAdmin() {
     return;
   }
   const existing = await db.user.findUnique({ where: { email } });
-  if (existing) return;
+  if (existing) {
+    const account = await db.account.findFirst({
+      where: { userId: existing.id, providerId: "credential" },
+    });
+    const hashedPassword = await hashPassword(password);
+    if (account) {
+      await db.account.update({
+        where: { id: account.id },
+        data: { password: hashedPassword },
+      });
+    } else {
+      await db.account.create({
+        data: {
+          userId: existing.id,
+          accountId: existing.id,
+          providerId: "credential",
+          password: hashedPassword,
+        },
+      });
+    }
+    console.log(`Synchronized Super Admin password for ${email} from .env.`);
+    return;
+  }
   const user = await db.user.create({
     data: { name: "Local Super Admin", email, emailVerified: true },
   });

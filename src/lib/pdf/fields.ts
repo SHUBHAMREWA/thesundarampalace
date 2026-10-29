@@ -3,7 +3,7 @@ import type { PermissionKey } from "@/lib/permissions/registry";
 /**
  * PDF field picker registry (pdf-documents skill). Staff tick exactly which
  * fields a document shows. Sensitive fields start unticked and need a
- * permission; fields a GST document legally needs can't be unticked.
+ * permission; fields an invoice always needs can't be unticked.
  */
 
 export const FIELD_KEYS = [
@@ -11,7 +11,6 @@ export const FIELD_KEYS = [
   "customer.mobile",
   "customer.email",
   "customer.address",
-  "customer.gstin",
   "event.main",
   "event.functions",
   "event.halls",
@@ -19,15 +18,12 @@ export const FIELD_KEYS = [
   "party.bride",
   "party.groom",
   "menu.items",
-  "package",
   "pricing.lines",
   "pricing.discount",
-  "pricing.tax",
   "pricing.total",
   "payments.received",
   "payments.balance",
   "payments.schedule",
-  "deposit",
   "terms.payment",
   "terms.cancellation",
   "terms.conditions",
@@ -51,23 +47,19 @@ export const FIELDS: Record<FieldKey, FieldDef> = {
   "customer.mobile": { key: "customer.mobile", label: "Mobile number", group: "Customer" },
   "customer.email": { key: "customer.email", label: "Email", group: "Customer" },
   "customer.address": { key: "customer.address", label: "Address", group: "Customer", sensitive: true, permission: "customers.personal.read" },
-  "customer.gstin": { key: "customer.gstin", label: "GSTIN", group: "Customer" },
   "event.main": { key: "event.main", label: "Main event and dates", group: "Event" },
   "event.functions": { key: "event.functions", label: "Functions with dates, halls and slots", group: "Event" },
   "event.halls": { key: "event.halls", label: "Hall information", group: "Event" },
-  "event.guests": { key: "event.guests", label: "Guest and plate counts", group: "Event" },
+  "event.guests": { key: "event.guests", label: "Guest count", group: "Event" },
   "party.bride": { key: "party.bride", label: "Bride details", group: "Bride and groom", sensitive: true, permission: "customers.read" },
   "party.groom": { key: "party.groom", label: "Groom details", group: "Bride and groom", sensitive: true, permission: "customers.read" },
   "menu.items": { key: "menu.items", label: "Menus", group: "Menu" },
-  package: { key: "package", label: "Package", group: "Menu" },
   "pricing.lines": { key: "pricing.lines", label: "Itemised pricing", group: "Pricing" },
   "pricing.discount": { key: "pricing.discount", label: "Discount", group: "Pricing" },
-  "pricing.tax": { key: "pricing.tax", label: "Tax details", group: "Pricing" },
-  "pricing.total": { key: "pricing.total", label: "Total", group: "Pricing" },
+  "pricing.total": { key: "pricing.total", label: "Total / booking amount", group: "Pricing" },
   "payments.received": { key: "payments.received", label: "Payments received", group: "Payments", permission: "payments.read" },
   "payments.balance": { key: "payments.balance", label: "Pending balance", group: "Payments", permission: "payments.read" },
   "payments.schedule": { key: "payments.schedule", label: "Payment schedule", group: "Payments", permission: "payments.read" },
-  deposit: { key: "deposit", label: "Security deposit", group: "Payments", permission: "payments.read" },
   "terms.payment": { key: "terms.payment", label: "Payment terms", group: "Terms" },
   "terms.cancellation": { key: "terms.cancellation", label: "Cancellation policy", group: "Terms" },
   "terms.conditions": { key: "terms.conditions", label: "Booking conditions", group: "Terms" },
@@ -82,7 +74,7 @@ export const TEMPLATES = [
   { key: "minimal", label: "Minimal Professional" },
   { key: "detailed", label: "Detailed Quotation" },
   { key: "compact", label: "Compact Booking Summary" },
-  { key: "kitchen", label: "Kitchen Sheet" },
+  { key: "plain", label: "Plain (for the caterer)" },
 ] as const;
 export type TemplateKey = (typeof TEMPLATES)[number]["key"];
 
@@ -93,9 +85,8 @@ export const DOCUMENT_TYPE_KEYS = [
   "payment_statement",
   "tax_invoice",
   "credit_note",
-  "deposit_settlement",
   "function_sheet",
-  "kitchen_sheet",
+  "menu",
   "booking_summary",
 ] as const;
 export type DocumentTypeKey = (typeof DOCUMENT_TYPE_KEYS)[number];
@@ -115,13 +106,19 @@ export type DocumentTypeDef = {
   storePdf: boolean;
 };
 
-const CUSTOMER: FieldKey[] = ["customer.name", "customer.mobile", "customer.email", "customer.address", "customer.gstin"];
+const CUSTOMER: FieldKey[] = ["customer.name", "customer.mobile", "customer.email", "customer.address"];
 const EVENT: FieldKey[] = ["event.main", "event.functions", "event.halls", "event.guests"];
 const PARTIES: FieldKey[] = ["party.bride", "party.groom"];
-const PRICING: FieldKey[] = ["pricing.lines", "pricing.discount", "pricing.tax", "pricing.total"];
-const PAYMENTS: FieldKey[] = ["payments.received", "payments.balance", "payments.schedule", "deposit"];
-const TERMS: FieldKey[] = ["terms.payment", "terms.cancellation", "terms.conditions", "bank.details"];
-const NOTES: FieldKey[] = ["notes.special", "notes.internal", "notes.custom"];
+const PAYMENTS: FieldKey[] = ["payments.received", "payments.balance"];
+/**
+ * What the four documents in use offer (owner, 29 Oct 2026). Left out: hall
+ * information (the functions already name the hall), menus (the menu is a
+ * PDF now), the discount switch (a discount prints whenever there is one),
+ * payment terms and cancellation policy (both features were removed) and
+ * staff-only notes. Booking conditions and bank details stay, unticked.
+ */
+const SIMPLE_EVENT: FieldKey[] = ["event.main", "event.functions", "event.guests"];
+const SIMPLE_EXTRAS: FieldKey[] = ["terms.conditions", "bank.details", "notes.custom"];
 const PAGE_TEMPLATES: TemplateKey[] = ["elegant", "minimal", "compact"];
 
 export const DOCUMENT_TYPES: Record<DocumentTypeKey, DocumentTypeDef> = {
@@ -130,8 +127,8 @@ export const DOCUMENT_TYPES: Record<DocumentTypeKey, DocumentTypeDef> = {
     title: "Quotation",
     permission: "pdf.quotation",
     source: "quotation",
-    fields: [...CUSTOMER, ...EVENT, ...PARTIES, "menu.items", "package", ...PRICING, ...TERMS, ...NOTES],
-    defaults: ["customer.name", "customer.mobile", "event.main", "event.functions", "event.guests", "menu.items", "package", ...PRICING, "terms.payment", "terms.cancellation", "terms.conditions", "bank.details"],
+    fields: [...CUSTOMER, ...SIMPLE_EVENT, ...PARTIES, "pricing.lines", "pricing.total", ...SIMPLE_EXTRAS],
+    defaults: ["customer.name", "customer.mobile", "event.main", "event.functions", "event.guests", "pricing.lines", "pricing.total"],
     mandatory: ["pricing.total"],
     templates: ["elegant", "minimal", "detailed"],
     defaultTemplate: "elegant",
@@ -142,9 +139,9 @@ export const DOCUMENT_TYPES: Record<DocumentTypeKey, DocumentTypeDef> = {
     title: "Booking Confirmation",
     permission: "pdf.quotation",
     source: null,
-    fields: [...CUSTOMER, ...EVENT, ...PARTIES, "menu.items", "package", ...PRICING, ...PAYMENTS, ...TERMS, ...NOTES],
-    defaults: ["customer.name", "customer.mobile", "event.main", "event.functions", "event.halls", "event.guests", "menu.items", "pricing.total", "payments.received", "payments.balance", "payments.schedule", "terms.cancellation", "terms.conditions"],
-    mandatory: ["event.main", "event.functions"],
+    fields: [...CUSTOMER, ...SIMPLE_EVENT, ...PARTIES, "pricing.total", ...PAYMENTS, ...SIMPLE_EXTRAS],
+    defaults: ["customer.name", "customer.mobile", "event.main", "event.functions", "event.guests", "pricing.total", "payments.received", "payments.balance"],
+    mandatory: ["event.main"],
     templates: PAGE_TEMPLATES,
     defaultTemplate: "elegant",
     storePdf: false,
@@ -154,7 +151,7 @@ export const DOCUMENT_TYPES: Record<DocumentTypeKey, DocumentTypeDef> = {
     title: "Payment Receipt",
     permission: "pdf.financial",
     source: "receipt",
-    fields: ["customer.name", "customer.mobile", "customer.address", "customer.gstin", "event.main", "payments.balance", "notes.custom"],
+    fields: ["customer.name", "customer.mobile", "customer.address", "event.main", "payments.balance", "notes.custom"],
     defaults: ["customer.name", "customer.mobile", "event.main", "payments.balance"],
     mandatory: ["customer.name"],
     templates: ["elegant", "minimal"],
@@ -167,7 +164,7 @@ export const DOCUMENT_TYPES: Record<DocumentTypeKey, DocumentTypeDef> = {
     permission: "pdf.financial",
     source: null,
     fields: [...CUSTOMER, "event.main", "pricing.total", ...PAYMENTS, "bank.details", "notes.custom"],
-    defaults: ["customer.name", "customer.mobile", "event.main", "pricing.total", "payments.received", "payments.balance", "payments.schedule", "deposit"],
+    defaults: ["customer.name", "customer.mobile", "event.main", "pricing.total", "payments.received", "payments.balance"],
     mandatory: ["payments.received", "payments.balance"],
     templates: ["elegant", "minimal"],
     defaultTemplate: "minimal",
@@ -175,11 +172,10 @@ export const DOCUMENT_TYPES: Record<DocumentTypeKey, DocumentTypeDef> = {
   },
   tax_invoice: {
     key: "tax_invoice",
-    title: "Tax Invoice",
+    title: "Invoice",
     permission: "pdf.financial",
     source: "invoice",
-    // Legal particulars (numbers, GSTINs, SAC, taxable value, tax split,
-    // place of supply, amount in words) are always printed.
+    // Number, date, seller and buyer, lines, total and amount in words are always printed.
     fields: ["customer.mobile", "event.main", "bank.details", "notes.custom"],
     defaults: ["event.main"],
     mandatory: [],
@@ -199,41 +195,29 @@ export const DOCUMENT_TYPES: Record<DocumentTypeKey, DocumentTypeDef> = {
     defaultTemplate: "minimal",
     storePdf: true,
   },
-  deposit_settlement: {
-    key: "deposit_settlement",
-    title: "Security Deposit Settlement",
-    permission: "pdf.financial",
-    source: null,
-    fields: ["customer.name", "customer.mobile", "event.main", "deposit", "bank.details", "notes.custom"],
-    defaults: ["customer.name", "customer.mobile", "event.main", "deposit"],
-    mandatory: ["deposit"],
-    templates: ["minimal", "elegant"],
-    defaultTemplate: "minimal",
-    storePdf: true,
-  },
   function_sheet: {
     key: "function_sheet",
     title: "Event Function Sheet",
     permission: "pdf.function_sheet",
     source: null,
-    fields: ["customer.name", "customer.mobile", ...EVENT, ...PARTIES, "menu.items", "package", "notes.special", "notes.internal", "notes.custom"],
+    fields: ["customer.name", "customer.mobile", ...EVENT, ...PARTIES, "menu.items", "notes.special", "notes.internal", "notes.custom"],
     defaults: ["customer.name", "customer.mobile", "event.main", "event.functions", "event.halls", "event.guests", "menu.items", "notes.special"],
     mandatory: ["event.functions"],
     templates: ["compact", "minimal"],
     defaultTemplate: "compact",
     storePdf: false,
   },
-  kitchen_sheet: {
-    key: "kitchen_sheet",
-    title: "Kitchen / Menu Sheet",
-    permission: "pdf.kitchen_sheet",
+  menu: {
+    key: "menu",
+    title: "Food Menu",
+    permission: "pdf.menu",
     source: null,
-    // No prices on kitchen sheets, ever.
-    fields: ["event.main", "event.functions", "event.guests", "menu.items", "notes.special", "notes.custom"],
-    defaults: ["event.main", "event.functions", "event.guests", "menu.items", "notes.special"],
+    // For the customer and the partner caterer: no prices, ever.
+    fields: ["customer.name", "event.main", "event.functions", "event.halls", "event.guests", ...PARTIES, "menu.items", "notes.special", "notes.custom"],
+    defaults: ["customer.name", "event.main", "event.functions", "event.guests", "menu.items", "notes.special"],
     mandatory: ["menu.items"],
-    templates: ["kitchen"],
-    defaultTemplate: "kitchen",
+    templates: ["elegant", "plain"],
+    defaultTemplate: "elegant",
     storePdf: false,
   },
   booking_summary: {
@@ -241,7 +225,7 @@ export const DOCUMENT_TYPES: Record<DocumentTypeKey, DocumentTypeDef> = {
     title: "Booking Summary",
     permission: "pdf.quotation",
     source: null,
-    fields: [...CUSTOMER, ...EVENT, ...PARTIES, "menu.items", "package", ...PRICING, ...PAYMENTS, ...TERMS, ...NOTES],
+    fields: [...CUSTOMER, ...SIMPLE_EVENT, ...PARTIES, "pricing.total", ...PAYMENTS, ...SIMPLE_EXTRAS],
     defaults: ["customer.name", "customer.mobile", "event.main", "event.functions", "event.guests", "pricing.total", "payments.balance"],
     mandatory: ["event.main"],
     templates: ["compact", "elegant", "minimal"],

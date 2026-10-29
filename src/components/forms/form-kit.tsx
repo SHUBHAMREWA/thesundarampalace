@@ -24,7 +24,7 @@ const PendingContext = createContext<boolean | null>(null);
 /** Field errors of the surrounding ActionPanel, so fields rendered by server components show their own errors. */
 export const FormErrorsContext = createContext<Record<string, string> | undefined>(undefined);
 
-function useFieldError(name: string, explicit?: string): string | undefined {
+export function useFieldError(name: string, explicit?: string): string | undefined {
   const errors = use(FormErrorsContext);
   return explicit ?? errors?.[name];
 }

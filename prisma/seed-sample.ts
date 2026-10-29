@@ -2,8 +2,7 @@
  * OPTIONAL sample data for local development and demos only:
  *   npm run db:seed:sample
  *
- * Creates clearly fake records — "Sample Hall A/B", "Sample tax category
- * (confirm with accountant)", "Test Customer 01", phones +91 90000 000xx —
+ * Creates clearly fake records — "Sample Hall A/B", "Test Customer 01", phones +91 90000 000xx —
  * and a 5-day sample wedding with 6 functions and 40 quotation lines for
  * checking screens and PDFs. None of these values are business facts.
  * Refuses to run unless APP_ENV is "development".
@@ -42,18 +41,15 @@ async function main() {
     db.hall.upsert({
       where: { slug },
       update: {},
-      create: { slug, name: { en: name }, facilities: [], eventTypeKeys: ["wedding"], setupBufferMinutes: 60, teardownBufferMinutes: 60, published: false, ...extra },
+      create: { slug, name: { en: name }, published: false, ...extra },
     });
   const hallA = await hall("sample-hall-a", "Sample Hall A");
   const hallB = await hall("sample-hall-b", "Sample Hall B");
   const lawn = await hall("sample-lawn", "Sample Lawn");
-  const morning = await db.slotDefinition.create({ data: { name: "Sample morning", startTime: "09:00", endTime: "15:00", sortOrder: 1 } });
-  const evening = await db.slotDefinition.create({ data: { name: "Sample evening", startTime: "19:00", endTime: "01:00", sortOrder: 2 } });
+  // Function times are typed per function (no fixed slots).
+  const morning = { startTime: "09:00", endTime: "15:00" };
+  const evening = { startTime: "19:00", endTime: "01:00" };
 
-  const tax = (name: string, sac: string, rate: string) =>
-    db.taxCategory.create({ data: { name, sacCode: sac, notes: "SAMPLE — confirm with the accountant", rates: { create: { ratePercent: rate, effectiveFrom: new Date("2020-01-01T00:00:00Z") } } } });
-  const taxFood = await tax("Sample catering tax (confirm with accountant)", "996334", "5.00");
-  const taxService = await tax("Sample services tax (confirm with accountant)", "998596", "18.00");
 
   const menu = await db.menu.create({
     data: {
@@ -72,7 +68,7 @@ async function main() {
     include: { items: true },
   });
   const menuPackage = await db.menuPackage.create({
-    data: { menuId: menu.id, name: "Sample standard plate", perPlateRate: "950.00", minPlates: 100, selectionRules: [{ course: "starters", choose: 3 }], taxCategoryId: taxFood.id },
+    data: { menuId: menu.id, name: "Sample standard plate", perPlateRate: "950.00", minPlates: 100, selectionRules: [{ course: "starters", choose: 3 }] },
   });
   const services = await Promise.all(
     [
@@ -81,7 +77,7 @@ async function main() {
       ["Sample lighting and sound", "lighting_sound", "event", "40000.00"],
       ["Sample DJ (per hour)", "other", "hour", "6000.00"],
     ].map(([name, categoryKey, unit, price], i) =>
-      db.serviceItem.create({ data: { name, categoryKey, unit, defaultPrice: price, taxCategoryId: taxService.id, sortOrder: i } }),
+      db.serviceItem.create({ data: { name, categoryKey, unit, defaultPrice: price, sortOrder: i } }),
     ),
   );
   const policy = await db.cancellationPolicy.create({
@@ -101,7 +97,6 @@ async function main() {
       status: "CONFIRMED",
       expectedGuests: 450,
       ownerId: admin.id,
-      placeOfSupplyStateCode: "09",
       depositRequired: "50000.00",
       confirmedAt: new Date(),
       confirmedById: admin.id,
@@ -125,7 +120,7 @@ async function main() {
     const range = slotRange(date, f.slot.startTime, f.slot.endTime);
     const subEvent = await db.bookingSubEvent.create({
       data: {
-        bookingId: booking.id, name: f.name, eventTypeKey: f.type, date: new Date(`${date}T00:00:00Z`), hallId: f.hall.id, slotDefinitionId: f.slot.id,
+        bookingId: booking.id, name: f.name, eventTypeKey: f.type, date: new Date(`${date}T00:00:00Z`), hallId: f.hall.id,
         startsAt: range.startsAt, endsAt: range.endsAt, expectedGuests: f.guests, sortOrder: (index + 1) * 10, specialInstructions: index === 4 ? "Sample: mandap facing east" : null,
         dietaryNotes: index === 2 ? "Sample: 20 Jain plates" : null,
       },
@@ -133,14 +128,14 @@ async function main() {
     await db.slotReservation.create({
       data: {
         subEventId: subEvent.id, hallId: f.hall.id, startsAt: range.startsAt, endsAt: range.endsAt, state: "CONFIRMED",
-        occupancies: { create: { physicalHallId: f.hall.id, effectiveStartsAt: new Date(range.startsAt.getTime() - 3_600_000), effectiveEndsAt: new Date(range.endsAt.getTime() + 3_600_000), state: "CONFIRMED" } },
+        occupancies: { create: { physicalHallId: f.hall.id, effectiveStartsAt: range.startsAt, effectiveEndsAt: range.endsAt, state: "CONFIRMED" } },
       },
     });
     await db.subEventMenuSelection.create({
       data: {
         subEventId: subEvent.id, menuPackageId: menuPackage.id, guaranteedPlates: f.guests,
         snapshot: {
-          menuName: "Sample vegetarian menu", category: "veg", packageName: menuPackage.name, perPlateRate: "950.00", minPlates: 100, taxCategoryId: taxFood.id, sacCode: "996334", taxRatePercent: "5.00",
+          menuName: "Sample vegetarian menu", category: "veg", packageName: menuPackage.name, perPlateRate: "950.00", minPlates: 100,
           items: menu.items.filter((i) => i.course !== "starters" || starters.some((s) => s.id === i.id)).map((i) => ({ course: i.course, name: (i.name as { en: string }).en })),
         },
       },
@@ -150,20 +145,20 @@ async function main() {
   await db.booking.update({ where: { id: booking.id }, data: { startDate: new Date(`${start}T00:00:00Z`), endDate: new Date(`${addDays(start, 4)}T00:00:00Z`) } });
 
   // 40 lines: per function — plates, hall, décor, lighting, DJ hours, 2 custom extras.
-  type Line = { kind: "PLATES" | "SERVICE" | "CUSTOM"; subEventId: string; subEventLabel: string; description: string; sacCode: string; unit: string; quantity: string; unitPrice: string; discount: string; taxRatePercent: string; taxCategoryId: string };
+  type Line = { kind: "PLATES" | "SERVICE" | "CUSTOM"; subEventId: string; subEventLabel: string; description: string; sacCode: string; unit: string; quantity: string; unitPrice: string; discount: string; taxRatePercent: string };
   const lines: Line[] = [];
   for (const s of subEvents) {
     const label = `${s.name}`;
-    const svc = (i: number, qty = "1", discount = "0"): Line => ({ kind: "SERVICE", subEventId: s.id, subEventLabel: label, description: services[i].name, sacCode: "998596", unit: services[i].unit, quantity: qty, unitPrice: services[i].defaultPrice!.toFixed(2), discount, taxRatePercent: "18.00", taxCategoryId: taxService.id });
-    lines.push({ kind: "PLATES", subEventId: s.id, subEventLabel: label, description: "Sample standard plate", sacCode: "996334", unit: "plate", quantity: String(s.guests), unitPrice: "950.00", discount: "0", taxRatePercent: "5.00", taxCategoryId: taxFood.id });
+    const svc = (i: number, qty = "1", discount = "0"): Line => ({ kind: "SERVICE", subEventId: s.id, subEventLabel: label, description: services[i].name, sacCode: "", unit: services[i].unit, quantity: qty, unitPrice: services[i].defaultPrice!.toFixed(2), discount, taxRatePercent: "0" });
+    lines.push({ kind: "PLATES", subEventId: s.id, subEventLabel: label, description: "Sample standard plate", sacCode: "", unit: "plate", quantity: String(s.guests), unitPrice: "950.00", discount: "0", taxRatePercent: "0" });
     lines.push(svc(0), svc(1, "1", "5000"), svc(2), svc(3, "4"));
-    lines.push({ kind: "CUSTOM", subEventId: s.id, subEventLabel: label, description: "Sample welcome drinks counter", sacCode: "996334", unit: "counter", quantity: "1", unitPrice: "12000.00", discount: "0", taxRatePercent: "5.00", taxCategoryId: taxFood.id });
-    if (lines.length < 40) lines.push({ kind: "CUSTOM", subEventId: s.id, subEventLabel: label, description: "Sample photo booth", sacCode: "998596", unit: "event", quantity: "1", unitPrice: "15000.00", discount: "0", taxRatePercent: "18.00", taxCategoryId: taxService.id });
+    lines.push({ kind: "CUSTOM", subEventId: s.id, subEventLabel: label, description: "Sample welcome drinks counter", sacCode: "", unit: "counter", quantity: "1", unitPrice: "12000.00", discount: "0", taxRatePercent: "0" });
+    if (lines.length < 40) lines.push({ kind: "CUSTOM", subEventId: s.id, subEventLabel: label, description: "Sample photo booth", sacCode: "", unit: "event", quantity: "1", unitPrice: "15000.00", discount: "0", taxRatePercent: "0" });
   }
   const totals = computeQuote(lines, { pricesIncludeTax: false, supplyType: "INTRA", bookingDiscount: "25000.00" });
   const version = await db.quotationVersion.create({
     data: {
-      bookingId: booking.id, versionNumber: 1, status: "DRAFT", pricesIncludeTax: false, supplyType: "INTRA", placeOfSupplyStateCode: "09", bookingDiscount: "25000.00",
+      bookingId: booking.id, versionNumber: 1, status: "DRAFT", pricesIncludeTax: false, supplyType: "INTRA", placeOfSupplyStateCode: "", bookingDiscount: "25000.00",
       subtotal: totals.subtotal.toFixed(2), discountTotal: totals.discountTotal.toFixed(2), taxableTotal: totals.taxableTotal.toFixed(2), cgstTotal: totals.cgstTotal.toFixed(2),
       sgstTotal: totals.sgstTotal.toFixed(2), igstTotal: totals.igstTotal.toFixed(2), taxTotal: totals.taxTotal.toFixed(2), grandTotal: totals.grandTotal.toFixed(2),
       validUntil: new Date(`${addDays(todayIST(), 15)}T00:00:00Z`), terms: "Sample terms — replace with the business's own wording.", createdById: admin.id,

@@ -58,6 +58,8 @@ const MAX_ATTEMPTS = 5;
 export async function deliverPendingOutbox(limit = 20, now: Date = new Date()): Promise<{ processed: number }> {
   const pending = await db.outbox.findMany({
     where: {
+      // WhatsApp rows are sent by deliverWhatsApp (services/whatsapp/campaigns.ts).
+      channel: { not: "whatsapp" },
       status: { in: ["PENDING", "FAILED"] },
       attempts: { lt: MAX_ATTEMPTS },
       OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],

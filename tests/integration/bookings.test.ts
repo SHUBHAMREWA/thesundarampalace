@@ -21,6 +21,7 @@ import {
   subEventSchema,
   updateBookingDetails,
 } from "@/server/services/bookings";
+import { checkPublicDateAvailability } from "@/server/services/availability";
 import { RuleError } from "@/server/services/errors";
 import { NotFoundError } from "@/server/services/leads";
 import { acceptVersion, addLine, createDraft, lineSchema, markSent } from "@/server/services/quotations";
@@ -37,7 +38,7 @@ const manager = () => actorFor(fx.users.manager, "manager");
 const sales = () => actorFor(fx.users.sales, "sales");
 
 function subEvent(over: Record<string, string>) {
-  return subEventSchema.parse({ name: "Wedding", eventTypeKey: "wedding", hallId: fx.hallA.id, slotDefinitionId: fx.evening.id, ...over });
+  return subEventSchema.parse({ name: "Wedding", eventTypeKey: "wedding", hallId: fx.hallA.id, ...fx.evening, ...over });
 }
 
 async function newBooking(status: "ENQUIRY_HOLD" | "TENTATIVE" = "ENQUIRY_HOLD") {
@@ -71,8 +72,9 @@ describeDb("bookings, holds and conflicts (Phase 3)", () => {
     expect(reservation.state).toBe("HOLD");
     expect(reservation.holdExpiresAt!.getTime()).toBeGreaterThan(Date.now() + 71 * 3_600_000);
     expect(reservation.occupancies).toHaveLength(1);
-    // Buffers widen the occupied range.
-    expect(reservation.occupancies[0].effectiveStartsAt.getTime()).toBe(s.startsAt.getTime() - 60 * 60_000);
+    // The hall is occupied exactly for the function's own times.
+    expect(reservation.occupancies[0].effectiveStartsAt.getTime()).toBe(s.startsAt.getTime()); // no setup buffer
+    expect(reservation.occupancies[0].effectiveEndsAt.getTime()).toBe(s.endsAt.getTime());
     const fresh = await db.booking.findUniqueOrThrow({ where: { id: booking.id } });
     expect(fresh.startDate?.toISOString().slice(0, 10)).toBe(futureDate(40));
   });
@@ -160,20 +162,38 @@ describeDb("bookings, holds and conflicts (Phase 3)", () => {
     expect(onB.conflicts).toHaveLength(0);
   });
 
-  it("evening slots cross midnight; buffers block an early next-morning start", async () => {
+  it("evening functions cross midnight; with no buffers the hall is free from the minute they end", async () => {
     const date = futureDate(66);
     const evening = await readyToConfirm(date, fx.hallB.id);
     await changeBookingStatus(manager(), evening.id, { to: "CONFIRMED", reason: null, overrideReason: null });
     const next = new Date(new Date(`${date}T00:00:00Z`).getTime() + 86_400_000).toISOString().slice(0, 10);
-    const early = await checkAvailability(manager(), null, subEvent({ date: next, hallId: fx.hallB.id, slotDefinitionId: "", customStart: "01:30", customEnd: "06:00" }));
-    expect(early.conflicts.some((c) => c.blocking)).toBe(true); // ends 01:00 + 1 h teardown
-    const later = await checkAvailability(manager(), null, subEvent({ date: next, hallId: fx.hallB.id, slotDefinitionId: fx.morning.id }));
-    expect(later.conflicts).toHaveLength(0);
+    const early = await checkAvailability(manager(), null, subEvent({ date: next, hallId: fx.hallB.id, startTime: "00:30", endTime: "06:00" }));
+    expect(early.conflicts.some((c) => c.blocking)).toBe(true); // the evening runs until 01:00
+    const after = await checkAvailability(manager(), null, subEvent({ date: next, hallId: fx.hallB.id, startTime: "01:00", endTime: "06:00" }));
+    expect(after.conflicts).toHaveLength(0);
+    expect(() => subEventSchema.parse({ name: "Same time", eventTypeKey: "wedding", date, hallId: fx.hallA.id, startTime: "10:00", endTime: "10:00" })).toThrow(/can't be the same/);
+  });
+
+  it("the public date check shows only Available or Limited per published hall", async () => {
+    const date = futureDate(77);
+    const booking = await newBooking("TENTATIVE");
+    await addSubEvent(sales(), booking.id, subEvent({ date, hallId: fx.hallA.id, startTime: "10:00", endTime: "14:00" }));
+    const busy = await checkPublicDateAvailability(date);
+    const status = (id: string) => busy.halls.find((h) => h.hallId === id)?.status;
+    expect(status(fx.hallA.id)).toBe("LIMITED");
+    expect(status(fx.grand.id)).toBe("LIMITED"); // a combined hall needs every member hall free
+    expect(status(fx.hallB.id)).toBe("AVAILABLE");
+    const json = JSON.stringify(busy);
+    expect(json).not.toContain(booking.reference);
+    expect(json).not.toContain("10:00");
+    expect(json).not.toMatch(/HOLD|TENTATIVE|CONFIRMED|customer/i);
+    const nextDay = await checkPublicDateAvailability(futureDate(78));
+    expect(nextDay.halls.find((h) => h.hallId === fx.hallA.id)?.status).toBe("AVAILABLE");
   });
 
   it("menus respect selection rules and minimum plates; plates lock before the event", async () => {
     const booking = await newBooking("TENTATIVE");
-    const { subEvent: s } = await addSubEvent(sales(), booking.id, subEvent({ date: futureDate(3), hallId: fx.hallB.id, slotDefinitionId: fx.morning.id }));
+    const { subEvent: s } = await addSubEvent(sales(), booking.id, subEvent({ date: futureDate(3), hallId: fx.hallB.id, ...fx.morning }));
     const starters = fx.menu.items.filter((i) => i.course === "starters").map((i) => i.id);
     await expect(setMenuSelection(sales(), s.id, menuSelectionSchema.parse({ menuPackageId: fx.menuPackage.id, itemIds: starters, guaranteedPlates: "300" }))).rejects.toThrow(/at most 2/);
     await expect(setMenuSelection(sales(), s.id, menuSelectionSchema.parse({ menuPackageId: fx.menuPackage.id, itemIds: starters.slice(0, 2), guaranteedPlates: "50" }))).rejects.toThrow(/at least 100/);
@@ -184,11 +204,11 @@ describeDb("bookings, holds and conflicts (Phase 3)", () => {
     await setMenuSelection(manager(), s.id, menuSelectionSchema.parse({ menuPackageId: fx.menuPackage.id, itemIds: starters.slice(0, 2), guaranteedPlates: "320" }));
     const selection = await db.subEventMenuSelection.findUniqueOrThrow({ where: { subEventId: s.id } });
     expect(selection.guaranteedPlates).toBe(320);
-    const snap = selection.snapshot as { items: { course: string }[]; perPlateRate: string; taxRatePercent: string };
+    const snap = selection.snapshot as { items: { course: string }[]; perPlateRate: string; taxRatePercent?: string };
     expect(snap.items.filter((i) => i.course === "starters")).toHaveLength(2);
     expect(snap.items.some((i) => i.course === "desserts")).toBe(true);
     expect(snap.perPlateRate).toBe("850.00");
-    expect(snap.taxRatePercent).toBe("5.00");
+    expect(snap.taxRatePercent).toBeUndefined(); // GST on plates is decided per booking
     expect(await db.auditLog.count({ where: { action: "plates.changed_after_lock" } })).toBeGreaterThan(0);
   });
 

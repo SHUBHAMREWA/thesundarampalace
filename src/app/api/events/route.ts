@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { clientIp, consumeRateLimit, rateLimitKey } from "@/server/services/rate-limit";
 
 const eventSchema = z.object({
-  type: z.enum(["whatsapp_click", "call_click", "brochure_download"]),
+  type: z.enum(["whatsapp_click", "call_click", "directions_click", "brochure_download"]),
   page: z.string().max(300).optional(),
   locale: z.enum(["en", "hi"]).optional(),
 });

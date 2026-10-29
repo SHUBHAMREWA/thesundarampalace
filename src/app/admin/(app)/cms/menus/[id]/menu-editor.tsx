@@ -65,7 +65,7 @@ export function MenuEditor({ id, defaults }: { id: string | null; defaults: Defa
       <Card>
         <CardContent className="flex flex-wrap items-end gap-6 pt-6">
           <CheckboxField name="publicVisible" label="Show on the Catering page" defaultChecked={defaults.publicVisible} />
-          <TextField name="sortOrder" label="Sort order" type="number" min={0} defaultValue={defaults.sortOrder} className="w-32" />
+          <TextField name="sortOrder" label="Position on the Catering page (1 = first)" type="number" min={0} defaultValue={defaults.sortOrder} className="w-56" />
         </CardContent>
       </Card>
       <div className="flex items-center justify-between">

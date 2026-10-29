@@ -10,6 +10,9 @@ import { grantableRoles, listStaff } from "@/server/services/staff";
 
 import { ActiveToggle, CreateStaffForm, RoleForm } from "./staff-forms";
 
+// CRM pages read the session on every request (see src/app/admin/layout.tsx).
+export const instant = false;
+
 export const metadata: Metadata = { title: "Staff" };
 
 export default async function StaffPage() {

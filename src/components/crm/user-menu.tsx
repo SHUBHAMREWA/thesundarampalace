@@ -33,11 +33,14 @@ export function UserMenu({ name, email }: { name: string; email: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="gap-2 px-2" aria-label="Account menu">
-          <Avatar className="size-8">
+        <Button variant="ghost" className="h-auto gap-2.5 px-2 py-1.5" aria-label={`Account menu for ${name} (${email})`}>
+          <Avatar className="size-9">
             <AvatarFallback className="bg-lavender text-text">{initials(name)}</AvatarFallback>
           </Avatar>
-          <span className="hidden text-sm sm:inline">{name}</span>
+          <span className="hidden min-w-0 flex-col items-start text-left leading-tight sm:flex">
+            <span className="text-sm font-medium">{name}</span>
+            <span className="max-w-56 truncate text-xs font-normal text-text-muted">{email}</span>
+          </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

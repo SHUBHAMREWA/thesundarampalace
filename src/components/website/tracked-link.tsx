@@ -2,7 +2,7 @@
 
 import type { ComponentProps } from "react";
 
-export type ConversionType = "whatsapp_click" | "call_click" | "brochure_download";
+export type ConversionType = "whatsapp_click" | "call_click" | "directions_click" | "brochure_download";
 
 /** Records a conversion (no personal data) without delaying navigation. */
 export function trackConversion(type: ConversionType | "enquiry_submitted"): void {

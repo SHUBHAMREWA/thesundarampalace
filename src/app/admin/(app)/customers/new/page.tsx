@@ -9,9 +9,14 @@ import { can } from "@/server/policies/authorize";
 import { CustomerForm } from "../customer-form";
 import { customerFormOptions } from "../options";
 
+// CRM pages read the session on every request (see src/app/admin/layout.tsx).
+export const instant = false;
+
 export const metadata: Metadata = { title: "New customer" };
 
-export default async function NewCustomerPage({ searchParams }: PageProps<"/admin/customers/new">) {
+export default async function NewCustomerPage({
+  searchParams,
+}: PageProps<"/admin/customers/new">) {
   const user = await requirePermission("customers.edit");
   const params = await searchParams;
   const next = params.next === "booking" ? "booking" : "";
@@ -21,7 +26,11 @@ export default async function NewCustomerPage({ searchParams }: PageProps<"/admi
       <PageHeader
         title="New customer"
         description="Only name and mobile are required. Collect personal details only when there's a reason to."
-        crumbs={[{ label: "Dashboard", href: "/admin" }, { label: "Customers", href: "/admin/customers" }, { label: "New" }]}
+        crumbs={[
+          { label: "Dashboard", href: "/admin" },
+          { label: "Customers", href: "/admin/customers" },
+          { label: "New" },
+        ]}
       />
       <Card>
         <CardContent className="pt-6">
@@ -29,8 +38,13 @@ export default async function NewCustomerPage({ searchParams }: PageProps<"/admi
             action={createCustomerAction}
             {...options}
             showPersonal={can(user, "customers.personal.read")}
-            submitLabel={next ? "Create customer and continue to booking" : "Create customer"}
+            submitLabel={
+              next
+                ? "Create customer and continue to booking"
+                : "Create customer"
+            }
             hidden={next ? { next } : {}}
+            askWhatsappConsent
           />
         </CardContent>
       </Card>

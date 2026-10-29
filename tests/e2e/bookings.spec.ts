@@ -2,12 +2,12 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { gstinCheckChar } from "../../src/lib/validation/gst";
 import { E2E_USERS } from "./fixtures";
-import { signIn, signInWithNew2fa } from "./helpers";
+import { signIn, signInToDashboard } from "./helpers";
 
 /**
  * Phase 3 end to end (fake data only): catalog → customer → booking with a
  * function → quotation sent and accepted → confirmed → payment → GST
- * invoice → documents, then role checks for sales and kitchen staff.
+ * invoice → documents, then a role check for sales staff.
  */
 
 function futureDate(days: number) {
@@ -27,7 +27,7 @@ let bookingUrl = "";
 
 test("an owner sets up pricing and takes a booking from enquiry to tax invoice", async ({ page }) => {
   test.slow();
-  await signInWithNew2fa(page, E2E_USERS.owner.email);
+  await signInToDashboard(page, E2E_USERS.owner.email);
 
   await test.step("business details needed for invoices", async () => {
     await page.goto("/admin/settings");
@@ -40,7 +40,7 @@ test("an owner sets up pricing and takes a booking from enquiry to tax invoice",
     await expect(page.getByText("Settings saved").first()).toBeVisible();
   });
 
-  await test.step("catalog: tax category, slot and a chargeable service", async () => {
+  await test.step("catalog: tax category and a chargeable service", async () => {
     await page.goto("/admin/catalog?tab=taxes");
     const add = page.locator("form").filter({ has: page.getByRole("button", { name: "Add tax category" }) });
     await add.getByLabel("Name", { exact: true }).fill("E2E sample hall tax");
@@ -48,15 +48,6 @@ test("an owner sets up pricing and takes a booking from enquiry to tax invoice",
     await add.getByLabel("GST rate (%)").fill("18");
     await add.getByRole("button", { name: "Add tax category" }).click();
     await expect(page.getByText("E2E sample hall tax · SAC 997212")).toBeVisible();
-
-    await page.goto("/admin/catalog?tab=halls");
-    const slot = page.locator("form").filter({ has: page.getByRole("button", { name: "Add slot" }) });
-    await slot.getByLabel("Name", { exact: true }).fill("E2E evening");
-    await slot.getByLabel("Starts", { exact: true }).fill("19:00");
-    await slot.getByLabel("Ends", { exact: true }).fill("01:00");
-    await slot.getByLabel("Active", { exact: true }).check();
-    await slot.getByRole("button", { name: "Add slot" }).click();
-    await expect(page.getByText("E2E evening").first()).toBeVisible();
 
     await page.goto("/admin/catalog?tab=services");
     const service = page.locator("form").filter({ has: page.getByRole("button", { name: "Add service" }) });
@@ -90,7 +81,8 @@ test("an owner sets up pricing and takes a booking from enquiry to tax invoice",
     await form.getByLabel("Function type", { exact: true }).selectOption({ label: "Wedding" });
     await form.getByLabel("Date", { exact: true }).fill(futureDate(5));
     await form.getByLabel("Hall", { exact: true }).selectOption({ label: "E2E Booking Hall" });
-    await form.getByLabel("Slot", { exact: true }).selectOption({ label: "E2E evening (19:00–01:00)" });
+    await form.getByLabel("Starts (24h, IST)").fill("19:00");
+    await form.getByLabel("Ends (earlier time = next day)").fill("01:00");
     await form.getByRole("button", { name: "Check availability" }).click();
     await expect(page.getByText(/^Available:/)).toBeVisible();
     await form.getByRole("button", { name: "Add function" }).click();
@@ -149,7 +141,7 @@ test("an owner sets up pricing and takes a booking from enquiry to tax invoice",
   });
 });
 
-test("sales staff don't see money; kitchen staff see menus without prices", async ({ browser }) => {
+test("sales staff don't see money", async ({ browser }) => {
   const sales = await browser.newPage();
   await signIn(sales, E2E_USERS.sales.email);
   await expect(sales).toHaveURL(/\/admin$/);
@@ -157,14 +149,4 @@ test("sales staff don't see money; kitchen staff see menus without prices", asyn
   await expect(sales.getByRole("heading", { name: "E2E sample wedding" })).toBeVisible();
   await expect(sales.getByRole("link", { name: "Payments and invoices" })).toHaveCount(0);
   await sales.close();
-
-  const kitchen = await browser.newPage();
-  await signIn(kitchen, E2E_USERS.kitchen.email);
-  await expect(kitchen).toHaveURL(/\/admin\/kitchen$/);
-  await expect(kitchen.getByText("Wedding", { exact: true })).toBeVisible();
-  await expect(kitchen.getByText("Menu not chosen yet")).toBeVisible();
-  await expect(kitchen.getByText("₹")).toHaveCount(0);
-  await kitchen.goto(bookingUrl);
-  await expect(kitchen.getByRole("heading", { name: "You don't have access to this page" })).toBeVisible();
-  await kitchen.close();
 });

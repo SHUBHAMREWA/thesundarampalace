@@ -1,6 +1,7 @@
-import { MessageCircle, Phone } from "lucide-react";
+import { Phone } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 
+import { WhatsAppIcon } from "@/components/shared/whatsapp-icon";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { telLink, whatsappLink } from "@/lib/contact/links";
@@ -44,7 +45,7 @@ export async function ContactActions({
             target="_blank"
             rel="noopener noreferrer"
           >
-            <MessageCircle aria-hidden="true" />
+            <WhatsAppIcon className="text-whatsapp" />
             {tr("whatsapp")}
           </TrackedLink>
         </Button>

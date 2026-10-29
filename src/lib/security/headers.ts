@@ -41,8 +41,11 @@ export function adminCsp(nonce: string): string {
     script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""};
     style-src 'self' 'unsafe-inline';
     img-src 'self' blob: data: ${CLOUDINARY};
+    media-src 'self' ${CLOUDINARY};
     font-src 'self';
     connect-src 'self' https://api.cloudinary.com${isDev ? " ws:" : ""};
+    worker-src 'self';
+    manifest-src 'self';
     object-src 'none';
     base-uri 'self';
     form-action 'self';

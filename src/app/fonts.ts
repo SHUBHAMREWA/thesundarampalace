@@ -9,7 +9,8 @@ export const cormorant = Cormorant_Garamond({
 
 export const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  // 300 is the light weight for website introductions (.text-body-lg).
+  weight: ["300", "400", "500", "600"],
   variable: "--font-inter",
   display: "swap",
 });

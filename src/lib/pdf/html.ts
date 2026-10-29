@@ -85,7 +85,7 @@ body.tpl-elegant { background: var(--color-bg); }
 .tpl-minimal .rule { display: none; }
 .tpl-minimal h2 { color: var(--color-text); }
 
-/* Detailed Quotation: same as minimal with every tax column */
+/* Detailed Quotation: same as minimal with every column */
 .tpl-detailed .header { border-bottom: 2px solid var(--color-primary); }
 
 /* Compact Booking Summary */
@@ -93,15 +93,15 @@ body.tpl-compact { font-size: 9pt; }
 .tpl-compact h2 { margin-top: 12px; }
 .tpl-compact td, .tpl-compact th { padding: 4px; }
 
-/* Kitchen Sheet: high contrast, large text, no colour, no prices */
-body.tpl-kitchen { font-size: 13pt; color: black; background: white; }
-.tpl-kitchen h1, .tpl-kitchen .doc-title, .tpl-kitchen .brand-name { font-family: "PdfInter", sans-serif; }
-.tpl-kitchen h2 { color: black; font-size: 13pt; }
-.tpl-kitchen .muted { color: black; }
-.tpl-kitchen .function { border: 2px solid black; }
-.tpl-kitchen .rule { background: black; }
-.tpl-kitchen .menu-course { font-size: 13pt; }
-.tpl-kitchen h3 { font-size: 13pt; }
+/* Plain menu for the caterer: high contrast, large text, no colour, no prices */
+body.tpl-plain { font-size: 13pt; color: black; background: white; }
+.tpl-plain h1, .tpl-plain .doc-title, .tpl-plain .brand-name { font-family: "PdfInter", sans-serif; }
+.tpl-plain h2 { color: black; font-size: 13pt; }
+.tpl-plain .muted { color: black; }
+.tpl-plain .function { border: 2px solid black; }
+.tpl-plain .rule { background: black; }
+.tpl-plain .menu-course { font-size: 13pt; }
+.tpl-plain h3 { font-size: 13pt; }
 `;
 
 function has(data: DocumentData, key: FieldKey) {
@@ -138,7 +138,6 @@ function customerBlock(data: DocumentData): string {
     c.mobile ? `<div>${esc(c.mobile)}</div>` : "",
     c.email ? `<div>${esc(c.email)}</div>` : "",
     c.address ? `<div>${esc(c.address)}</div>` : "",
-    c.gstin ? `<div>GSTIN ${esc(c.gstin)}</div>` : "",
   ].join("");
   return rows ? `<div class="box"><div class="label">Customer</div>${rows}</div>` : "";
 }
@@ -159,7 +158,7 @@ function functionsBlock(data: DocumentData): string {
       (f) => `
     <div class="function keep-together">
       <div class="function-head"><span>${esc(f.name)}</span><span>${esc(f.date)} · ${esc(f.time)}</span></div>
-      <div>${esc(f.hall)}${f.slot ? ` · ${esc(f.slot)}` : ""}</div>
+      <div>${esc(f.hall)}</div>
       ${showGuests && (f.guests || f.plates) ? `<div>${f.guests ? `${esc(f.guests)} guests` : ""}${f.guests && f.plates ? " · " : ""}${f.plates ? `<strong>${esc(f.plates)} plates guaranteed</strong>` : ""}</div>` : ""}
       ${showMenu && f.menuName ? `<h3>${esc(f.menuName)}</h3>${f.menu.map((c) => `<div class="menu-course"><strong>${esc(c.course)}:</strong> ${c.items.map(esc).join(", ")}</div>`).join("")}` : ""}
       ${showMenu && f.dietaryNotes ? `<div><strong>Dietary notes:</strong> ${esc(f.dietaryNotes)}</div>` : ""}
@@ -188,7 +187,7 @@ function linesTable(lines: DocLine[], opts: { detailed: boolean; showDiscount: b
       <th>#</th><th>Description</th>${opts.showSac ? "<th>SAC</th>" : ""}<th class="num">Qty</th><th class="num">Rate</th>
       ${opts.showDiscount ? '<th class="num">Discount</th>' : ""}
       ${opts.showTax ? '<th class="num">Taxable</th><th class="num">GST %</th>' + taxCols.map((c) => `<th class="num">${c}</th>`).join("") : ""}
-      <th class="num">${opts.showTax ? "Amount" : "Amount incl. GST"}</th>
+      <th class="num">Amount</th>
     </tr></thead>
     <tbody>${lines
       .map(
@@ -229,13 +228,13 @@ function quotationBlock(data: DocumentData): string {
   const q = data.quotation;
   if (!q) return "";
   const parts: string[] = [];
-  parts.push(`<div class="muted small">Version ${esc(q.version)}${q.validUntil ? ` · valid until ${esc(q.validUntil)}` : ""} · prices ${q.pricesIncludeTax ? "include" : "exclude"} GST · place of supply ${esc(q.placeOfSupply)}</div>`);
+  parts.push(`<div class="muted small">${q.validUntil ? `Valid until ${esc(q.validUntil)}` : ""}${q.gst ? ` · prices ${q.gst.pricesIncludeTax ? "include" : "exclude"} GST · place of supply ${esc(q.gst.placeOfSupply)}` : ""}</div>`);
   if (q.lines) {
     parts.push(`<h2>Charges</h2>`);
-    parts.push(linesTable(q.lines, { detailed: data.template === "detailed", showDiscount: q.showDiscount, showTax: q.showTax && data.template === "detailed", supplyType: q.supplyType, showSac: data.template === "detailed" }));
+    parts.push(linesTable(q.lines, { detailed: data.template === "detailed", showDiscount: q.showDiscount, showTax: !!q.gst && data.template === "detailed", supplyType: q.supplyType, showSac: !!q.gst && data.template === "detailed" }));
   }
   if (has(data, "pricing.total")) {
-    parts.push(totalsTable(q.totals, { showDiscount: q.showDiscount, showTax: q.showTax, supplyType: q.supplyType }));
+    parts.push(totalsTable(q.totals, { showDiscount: q.showDiscount, showTax: !!q.gst, supplyType: q.supplyType }));
   }
   return parts.join("");
 }
@@ -255,7 +254,7 @@ function paymentsBlock(data: DocumentData): string {
     );
   }
   const summary: [string, string][] = [];
-  if (p.agreed) summary.push(["Agreed total", p.agreed]);
+  if (p.agreed) summary.push(["Booking amount", p.agreed]);
   if (p.netReceived) summary.push(["Received (net)", p.netReceived]);
   if (p.balance) summary.push(["Balance due", p.balance]);
   if (summary.length) {
@@ -269,18 +268,12 @@ function paymentsBlock(data: DocumentData): string {
   return parts.join("");
 }
 
-function depositBlock(data: DocumentData): string {
-  const d = data.deposit;
-  if (!d) return "";
-  return `<h2>Security deposit</h2>
-  ${d.entries.length ? `<table><thead><tr><th>Date</th><th>Entry</th><th>Reason</th><th class="num">Amount</th></tr></thead><tbody>${d.entries.map((e) => `<tr><td>${esc(e.date)}</td><td>${esc(e.type)}</td><td>${esc(e.reason ?? "")}</td><td class="num">${esc(e.amount)}</td></tr>`).join("")}</tbody></table>` : '<p class="muted">No deposit recorded.</p>'}
-  <table class="totals keep-together"><tbody>
-    <tr><td>Received</td><td class="num">${esc(d.received)}</td></tr>
-    <tr><td>Deductions</td><td class="num">− ${esc(d.deducted)}</td></tr>
-    <tr><td>Refunded</td><td class="num">− ${esc(d.refunded)}</td></tr>
-    <tr class="grand"><td>Still held</td><td class="num">${esc(d.held)}</td></tr>
-  </tbody></table>
-  <p class="small muted">The security deposit is refundable and is not part of the booking amount.</p>`;
+/** No accepted quotation yet: the booking amount entered when the booking was made. */
+function bookingAmountBlock(data: DocumentData): string {
+  const b = data.bookingAmount;
+  if (!b) return "";
+  return `<table class="totals keep-together"><tbody><tr class="grand"><td>Booking amount</td><td class="num">${esc(b.amount)}</td></tr></tbody></table>
+  <p class="small muted"><em>${esc(b.inWords)}</em></p>`;
 }
 
 function receiptBlock(data: DocumentData): string {
@@ -293,16 +286,16 @@ function receiptBlock(data: DocumentData): string {
     <div>On ${esc(r.date)} by ${esc(r.method)}${r.transactionRef ? ` (ref. ${esc(r.transactionRef)})` : ""}</div>
     ${r.balanceAfter ? `<div>Balance due on the booking: <strong>${esc(r.balanceAfter)}</strong></div>` : ""}
   </div>
-  <p class="small muted" style="margin-top:8px">This is a payment receipt, not a tax invoice.</p>`;
+  <p class="small muted" style="margin-top:8px">This is a payment receipt, not an invoice.</p>`;
 }
 
-function partyBox(label: string, p: { legalName?: string; name?: string; company?: string | null; gstin: string | null; address: string | null; state: string; phone?: string | null; email?: string | null }) {
+function partyBox(label: string, p: { legalName?: string; name?: string; company?: string | null; gstin: string | null; address: string | null; state: string | null; phone?: string | null; email?: string | null }, gst: boolean) {
   return `<div class="box"><div class="label">${esc(label)}</div>
     <div><strong>${esc(p.legalName ?? p.name ?? "")}</strong></div>
     ${p.company ? `<div>${esc(p.company)}</div>` : ""}
     ${p.address ? `<div>${esc(p.address)}</div>` : ""}
-    <div>State: ${esc(p.state)}</div>
-    <div>GSTIN: ${esc(p.gstin ?? "Unregistered")}</div>
+    ${gst && p.state ? `<div>State: ${esc(p.state)}</div>` : ""}
+    ${gst ? `<div>GSTIN: ${esc(p.gstin ?? "Unregistered")}</div>` : ""}
     ${p.phone ? `<div>${esc(p.phone)}</div>` : ""}
     ${p.email ? `<div>${esc(p.email)}</div>` : ""}
   </div>`;
@@ -314,14 +307,13 @@ function invoiceBlock(data: DocumentData): string {
   return `
   <div class="grid2 legal">
     <div><strong>Invoice no.</strong> ${esc(inv.number)}<br><strong>Invoice date</strong> ${esc(inv.date)}</div>
-    <div><strong>Place of supply</strong> ${esc(inv.placeOfSupply)}<br><strong>Supply</strong> ${inv.supplyType === "INTRA" ? "Intra-state (CGST + SGST)" : "Inter-state (IGST)"}${inv.status !== "ISSUED" ? `<br><strong>Status</strong> ${esc(inv.status)}` : ""}</div>
+    <div>${inv.gst ? `<strong>Place of supply</strong> ${esc(inv.gst.placeOfSupply)}<br><strong>Supply</strong> ${inv.supplyType === "INTRA" ? "Intra-state (CGST + SGST)" : "Inter-state (IGST)"}` : ""}${inv.status !== "ISSUED" ? `<br><strong>Status</strong> ${esc(inv.status)}` : ""}</div>
   </div>
-  <div class="grid2" style="margin-top:10px">${partyBox("Supplier", inv.supplier)}${partyBox("Recipient", inv.recipient)}</div>
+  <div class="grid2" style="margin-top:10px">${partyBox("Seller", inv.supplier, !!inv.gst)}${partyBox("Billed to", inv.recipient, !!inv.gst)}</div>
   <h2>Particulars</h2>
-  ${linesTable(inv.lines, { detailed: true, showDiscount: inv.lines.some((l) => l.discount), showTax: true, supplyType: inv.supplyType, showSac: true })}
-  ${totalsTable(inv.totals, { showDiscount: false, showTax: true, supplyType: inv.supplyType })}
-  ${inv.notes ? `<div class="small" style="margin-top:8px">${textBlock(inv.notes)}</div>` : ""}
-  <p class="small muted">Tax rates and SAC codes as configured by the business and confirmed by its accountant.</p>`;
+  ${linesTable(inv.lines, { detailed: true, showDiscount: inv.lines.some((l) => l.discount), showTax: !!inv.gst, supplyType: inv.supplyType, showSac: !!inv.gst })}
+  ${totalsTable(inv.totals, { showDiscount: false, showTax: !!inv.gst, supplyType: inv.supplyType })}
+  ${inv.notes ? `<div class="small" style="margin-top:8px">${textBlock(inv.notes)}</div>` : ""}`;
 }
 
 function creditNoteBlock(data: DocumentData): string {
@@ -332,10 +324,10 @@ function creditNoteBlock(data: DocumentData): string {
     <div><strong>Credit note no.</strong> ${esc(cn.number)}<br><strong>Date</strong> ${esc(cn.date)}</div>
     <div><strong>Against invoice</strong> ${esc(cn.invoiceNumber)} dated ${esc(cn.invoiceDate)}<br><strong>Reason</strong> ${esc(cn.reason)}</div>
   </div>
-  <div class="grid2" style="margin-top:10px">${partyBox("Supplier", cn.supplier)}${partyBox("Recipient", cn.recipient)}</div>
+  <div class="grid2" style="margin-top:10px">${partyBox("Seller", cn.supplier, cn.gst)}${partyBox("Billed to", cn.recipient, cn.gst)}</div>
   <h2>Credited</h2>
-  ${linesTable(cn.lines, { detailed: true, showDiscount: false, showTax: true, supplyType: cn.supplyType, showSac: true })}
-  ${totalsTable(cn.totals, { showDiscount: false, showTax: true, supplyType: cn.supplyType })}`;
+  ${linesTable(cn.lines, { detailed: true, showDiscount: false, showTax: cn.gst, supplyType: cn.supplyType, showSac: cn.gst })}
+  ${totalsTable(cn.totals, { showDiscount: false, showTax: cn.gst, supplyType: cn.supplyType })}`;
 }
 
 function termsBlock(data: DocumentData): string {
@@ -376,12 +368,11 @@ export function renderDocumentHtml(data: DocumentData, assets: DocumentAssets): 
     data.type === "tax_invoice" || data.type === "credit_note" ? topBlocks : "",
     receiptBlock(data),
     partiesBlock(data),
-    data.packageName ? `<h2>Package</h2><p>${esc(data.packageName)}</p>` : "",
     functionsBlock(data),
     hallsBlock(data),
     quotationBlock(data),
+    bookingAmountBlock(data),
     paymentsBlock(data),
-    depositBlock(data),
     termsBlock(data),
     notesBlock(data),
     data.business.footer ? `<div class="footer-text small muted">${textBlock(data.business.footer)}</div>` : "",

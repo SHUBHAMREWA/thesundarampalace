@@ -8,8 +8,6 @@ const PAGES = [
   { path: "/en/catering", heading: "Catering" },
   { path: "/en/decor", heading: "Décor themes" },
   { path: "/en/services", heading: "Celebrations we host" },
-  { path: "/en/services/weddings", heading: "Weddings and celebrations" },
-  { path: "/en/packages", heading: "Packages" },
   { path: "/en/gallery", heading: "Gallery" },
   { path: "/en/contact", heading: "Contact us" },
   { path: "/en/plan-your-event", heading: "Plan your event" },
@@ -29,13 +27,8 @@ test.describe("public pages with CMS placeholders (tests #24, #25, #26)", () => 
   }
 
   test("empty pages show placeholders, never invented facts", async ({ page }) => {
-    await page.goto("/en/about");
-    await expect(page.getByText("This page is being prepared")).toBeVisible();
     await page.goto("/en/legal/privacy-policy");
     await expect(page.getByText("This policy is being finalised")).toBeVisible();
-    await page.goto("/en/packages");
-    await expect(page.getByText("This page is being prepared")).toBeVisible();
-    await expect(page.getByText(/₹/)).toHaveCount(0); // no invented prices
   });
 
   test("sets canonical and hreflang links", async ({ page }) => {

@@ -5,12 +5,13 @@ import { currentLocale } from "@/i18n/current";
 
 import "../../globals.css";
 import { fontVariables } from "../../fonts";
-import { FloatingWhatsApp } from "@/components/website/floating-whatsapp";
+import { FloatingActions } from "@/components/website/floating-actions";
 import { SiteFooter } from "@/components/website/site-footer";
 import { SiteHeader } from "@/components/website/site-header";
 import { UtmCapture } from "@/components/website/utm-capture";
 import { routing } from "@/i18n/routing";
 import { whatsappLink } from "@/lib/contact/links";
+import { directionsUrl } from "@/lib/contact/map";
 import { env } from "@/lib/env";
 import { t } from "@/lib/i18n/localized";
 import { getPublicContact } from "@/server/cms/queries";
@@ -35,6 +36,7 @@ export default async function WebsiteLayout({ children }: LayoutProps<"/[locale]
     getTranslations("cta"),
     getPublicContact(),
   ]);
+  const directions = directionsUrl(contact);
   return (
     <html lang={locale} className={fontVariables}>
       <body className="flex min-h-dvh flex-col">
@@ -51,12 +53,10 @@ export default async function WebsiteLayout({ children }: LayoutProps<"/[locale]
             {children}
           </main>
           <SiteFooter locale={locale} />
-          {contact.whatsapp ? (
-            <FloatingWhatsApp
-              href={whatsappLink(contact.whatsapp, t(contact.contact.whatsappMessage, locale))}
-              label={cta("whatsapp")}
-            />
-          ) : null}
+          <FloatingActions
+            whatsapp={contact.whatsapp ? { href: whatsappLink(contact.whatsapp, t(contact.contact.whatsappMessage, locale)), label: cta("whatsapp") } : null}
+            directions={directions ? { href: directions, label: cta("directions") } : null}
+          />
         </NextIntlClientProvider>
       </body>
     </html>

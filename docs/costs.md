@@ -26,7 +26,7 @@ Free tiers have hard limits. This document lists them, how the app stays inside 
 | **UptimeRobot** | Uptime alerts | **Free** | A few dozen monitors at 5-min intervals (verify). | — | 2 monitors. | To verify |
 | **Render** (Phase 3) | PDF renderer (`pdf-service/`) | **Free web service** | Sleeps after 15 min idle (~1 min to wake); 750 instance-hours/month per workspace. | Slow first PDF after idle. | Wake it when the PDF dialog opens. | Third-party (several agree) |
 | **Cloudflare R2** (not used yet) | Private documents if the database fills up | Free tier | 10 GB storage, no egress fee. **Card required to enable.** | Billed beyond free tier. | Move only when Neon storage passes ~70% (see §3). | Third-party (consistent) |
-| **WhatsApp** | Customer chat | `wa.me` links (free) | — | — | No API messages unless the business decides to pay per message (India 2026: marketing ≈ ₹0.78/message; utility lower). | Meta docs + third-party rate tables |
+| **WhatsApp** | Customer chat, bulk messages | `wa.me` links (free); API off until keys are added in Settings | — | — | API messages are paid per message. **Meta Cloud API (direct):** Meta fee only (India 2026: marketing ≈ ₹0.78–0.88, utility ≈ ₹0.11–0.16, replies within 24 h free). **Twilio:** Meta fee + Twilio $0.005 per message sent *and* received (+$0.001 per failed), billed in USD. Example, 1,000 marketing messages/month: ≈ ₹800–900 direct vs ≈ ₹1,250–1,300 via Twilio. Re-check rates before budgeting. | Meta docs, twilio.com/en-us/whatsapp/pricing, third-party rate tables |
 | **Hostinger** | Domain + DNS | Already purchased | — | Site and email stop if the domain lapses. | Turn on auto-renew. | — |
 
 ## 3. Monthly free-tier check (5 minutes, first working day of the month)

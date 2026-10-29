@@ -47,7 +47,7 @@ export default async function globalSetup(): Promise<void> {
     }
     // An unpublished hall for the booking flow (never shown on the website).
     await db.hall.create({
-      data: { slug: "e2e-booking-hall", name: { en: "E2E Booking Hall" }, facilities: [], eventTypeKeys: [], published: false, setupBufferMinutes: 60, teardownBufferMinutes: 60 },
+      data: { slug: "e2e-booking-hall", name: { en: "E2E Booking Hall" }, published: false },
     });
   } finally {
     await db.$disconnect();

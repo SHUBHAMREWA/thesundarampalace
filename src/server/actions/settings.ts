@@ -31,8 +31,6 @@ function valuesFor(section: EditableSection, form: FormData, current: Record<str
         ...current,
         displayName: s("displayName"),
         legalName: s("legalName") || null,
-        gstin: s("gstin").toUpperCase() || null,
-        stateCode: s("stateCode") || null,
         address: s("address") || null,
         city: s("city") || null,
         phone: phoneOrNull(s("phone"), "phone"),
@@ -80,7 +78,6 @@ function valuesFor(section: EditableSection, form: FormData, current: Record<str
       };
     case "tax":
       return {
-        pricesIncludeTaxByDefault: checkbox(form, "pricesIncludeTaxByDefault"),
         roundGrandTotal: checkbox(form, "roundGrandTotal"),
         invoiceNotes: s("invoiceNotes") || null,
       };

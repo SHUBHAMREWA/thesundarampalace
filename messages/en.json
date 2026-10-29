@@ -15,9 +15,13 @@
     "catering": "Catering",
     "decor": "Décor",
     "services": "Celebrations",
-    "packages": "Packages",
     "gallery": "Gallery",
-    "contact": "Contact"
+    "contact": "Contact",
+    "checkDate": "Check Dates",
+    "siteVisit": "Book Site Visit",
+    "brochure": "E-Brochure",
+    "realWeddings": "Real Weddings",
+    "blog": "Blog"
   },
   "cta": {
     "planEvent": "Plan your event",
@@ -29,7 +33,6 @@
     "viewGallery": "View the gallery",
     "seeMenus": "See sample menus",
     "seeThemes": "See décor themes",
-    "seePackages": "See packages",
     "googleReviews": "Read our reviews on Google",
     "directions": "Get directions",
     "enquireAboutVenue": "Enquire about this venue"
@@ -46,41 +49,19 @@
     "metaDescription": "Wedding venue and banquet halls for weddings, receptions and celebrations.",
     "eyebrow": "Weddings & celebrations",
     "reviewsIntro": "We only show genuine reviews. Read what guests say on our Google Business Profile.",
-    "datesIntro": "Dates in high demand this season. Enquire early to check availability."
+    "previous": "Previous picture",
+    "next": "Next picture",
+    "slide": "Show picture",
+    "enquiryTitle": "Send us an enquiry",
+    "mapTitle": "Find us on the map",
+    "rated": "Rated {rating} out of 5",
+    "scrollDown": "Scroll down"
   },
   "venues": {
     "eyebrow": "Venue spaces",
-    "area": "Area",
-    "ceiling": "Ceiling height",
-    "sqft": "{value} sq ft",
-    "feet": "{value} ft",
-    "capacity": "Capacity",
-    "capacityRange": "{min}–{max} guests",
-    "capacityUpTo": "Up to {max} guests",
-    "facilities": "Facilities",
-    "floorPlan": "Floor plan",
-    "suitableFor": "Suitable for",
-    "slots": "Event timings",
-    "tour": "Virtual tour",
-    "watchTour": "Watch the walkthrough",
     "photos": "Photographs"
   },
   "catalog": {
-    "layout": {
-      "THEATRE": "Theatre",
-      "BANQUET": "Round table / banquet",
-      "FLOATING": "Floating / standing",
-      "CLUSTER": "Cluster"
-    },
-    "facility": {
-      "ac": "Air conditioning",
-      "power_backup": "Power backup",
-      "stage": "Stage",
-      "bridal_room": "Bridal / green room",
-      "parking": "Parking",
-      "lift": "Lift",
-      "accessible": "Step-free access"
-    },
     "menuCategory": {
       "veg": "Vegetarian",
       "jain": "Jain",
@@ -97,13 +78,6 @@
       "live_counters": "Live counters",
       "other": "More"
     }
-  },
-  "packages": {
-    "includes": "Includes",
-    "addOns": "Optional add-ons",
-    "terms": "Terms",
-    "priceOnRequest": "Price on request",
-    "startingFrom": "Starting from {price}"
   },
   "gallery": {
     "all": "All",
@@ -124,10 +98,6 @@
   "enquiry": {
     "title": "Plan your event",
     "intro": "Tell us a little about your celebration. It takes less than a minute.",
-    "stepOf": "Step {current} of {total}",
-    "step1": "Your event",
-    "step2": "Your vision",
-    "step3": "Your details",
     "eventType": "Type of event",
     "chooseEventType": "Choose an event type",
     "preferredDate": "Preferred date",
@@ -147,8 +117,6 @@
     "viaEmail": "Email",
     "consent": "I agree that The Sundaram Palace may contact me about this enquiry and store these details for that purpose, as described in the privacy policy.",
     "privacyLink": "Read the privacy policy",
-    "next": "Continue",
-    "back": "Back",
     "submit": "Send enquiry",
     "sending": "Sending…",
     "successTitle": "Thank you — we've received your enquiry",
@@ -184,5 +152,58 @@
     "title": "Something went wrong",
     "body": "Please try again in a moment.",
     "retry": "Try again"
+  },
+  "aboutPage": {
+    "metaTitle": "About us | Marriage garden in Lohi, Rewa",
+    "metaDescription": "The Sundaram Palace is a marriage garden and banquet hall in Lohi, Rewa (MP), near Gudh Road Flyover on Rathara–Silpara Ring Road, for weddings, receptions, engagements and events.",
+    "eyebrow": "Our story",
+    "title": "About us",
+    "summary": "A marriage garden and banquet venue in Lohi, Rewa, for weddings, receptions and every family celebration.",
+    "introHeading": "A home for your celebrations in Rewa",
+    "intro1": "The Sundaram Palace is a marriage garden and banquet venue in Lohi, Rewa, Madhya Pradesh. A spacious lawn and an elegant banquet hall give families room to celebrate — from close-knit ceremonies to grand weddings.",
+    "intro2": "Our team supports you through the planning and on the day itself, so you can spend your time with your guests.",
+    "hostHeading": "Celebrations we host",
+    "host": {
+      "weddings": "Weddings and receptions",
+      "engagements": "Engagement ceremonies",
+      "cultural": "Cultural and religious functions",
+      "birthdays": "Birthday parties",
+      "corporate": "Corporate events"
+    },
+    "venueHeading": "The venue",
+    "venue": {
+      "lawn": "A spacious, well-kept lawn for outdoor weddings and receptions",
+      "hall": "An elegant banquet hall for indoor functions",
+      "parking": "Ample parking for your guests",
+      "support": "Professional event support from our team"
+    },
+    "findHeading": "Where to find us",
+    "address": "Rathara–Silpara Ring Road, near Gudh Road Flyover, Lohi, Rewa, Madhya Pradesh",
+    "directions": "Get directions",
+    "ctaHeading": "Plan your celebration with us",
+    "ctaText": "Tell us your date and the kind of celebration you have in mind. We will help you with the rest.",
+    "breadcrumbHome": "Home",
+    "owner": {
+      "eyebrow": "A message from our owner",
+      "heading": "Welcome to The Sundaram Palace",
+      "p1": "Welcome to The Sundaram Palace Rewa! It has always been my vision to create a venue where every celebration feels grand, elegant, and truly unforgettable.",
+      "p2": "Whether it’s a wedding, reception, engagement, cultural program, or family gathering, our team is dedicated to making your special moments seamless and memorable. We take pride in offering a beautiful garden, modern banquet hall, and personalized services to ensure that every guest experiences comfort and joy.",
+      "p3": "At The Sundaram Palace Rewa, we don’t just host events—we create memories that last a lifetime. I personally invite you to visit our venue and witness the perfect blend of luxury, warmth, and hospitality.",
+      "name": "Mr. Vivek Garg",
+      "role": "Owner, The Sundaram Palace",
+      "visit": "Book a site visit"
+    }
+  },
+  "contactPage": {
+    "metaTitle": "Contact us | Marriage garden in Lohi, Rewa",
+    "metaDescription": "Call, WhatsApp or visit The Sundaram Palace, Rathara–Silpara Ring Road near Gudh Road Flyover, Lohi, Rewa (MP). Send an enquiry for your wedding or event.",
+    "eyebrow": "We would love to hear from you",
+    "title": "Contact us",
+    "summary": "Call, WhatsApp or send us a quick enquiry — or come and see the venue for yourself."
+  },
+  "lightbox": {
+    "close": "Close",
+    "previous": "Previous photo",
+    "next": "Next photo"
   }
 }

@@ -5,6 +5,8 @@ description: Use when working on any money logic in The Sundaram Palace CRM — 
 
 # India billing, GST and payments
 
+**No GST (owner decision, 26 Oct 2026):** the business is not charging GST. Quotations, charges and invoices carry 0% tax and no SAC, GSTIN or place of supply; the Taxes catalog tab, Catering GST and the per-booking food GST switch were removed. Tax columns stay in the database (neutral values) and documents issued earlier with GST still print their GST details. If GST is ever needed again, this is a feature to rebuild, not a setting.
+
 All tax rates, SAC codes and policies come from Settings and must be confirmed by the business's accountant before official use. Never hardcode them.
 
 ## Money basics

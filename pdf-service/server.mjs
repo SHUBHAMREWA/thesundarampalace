@@ -41,21 +41,26 @@ function verify(timestamp, signature, body) {
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
-async function render(html, footer) {
+async function render(html, footer, fullBleed) {
   const page = await (await browser()).newPage();
   try {
     await page.route("**/*", (route) => (route.request().url().startsWith("data:") ? route.continue() : route.abort()));
     await page.setContent(html, { waitUntil: "load", timeout: 30_000 });
     await page.evaluate(() => document.fonts.ready.then(() => true));
-    return await page.pdf({
-      format: "A4",
-      printBackground: true,
-      preferCSSPageSize: true,
-      displayHeaderFooter: true,
-      headerTemplate: "<span></span>",
-      footerTemplate: typeof footer === "string" ? footer : "<span></span>",
-      margin: { top: "16mm", bottom: "18mm", left: "14mm", right: "14mm" },
-    });
+    // fullBleed: edge-to-edge pages without the footer (the food menu).
+    return await page.pdf(
+      fullBleed
+        ? { format: "A4", printBackground: true, preferCSSPageSize: true, margin: { top: "0", bottom: "0", left: "0", right: "0" } }
+        : {
+            format: "A4",
+            printBackground: true,
+            preferCSSPageSize: true,
+            displayHeaderFooter: true,
+            headerTemplate: "<span></span>",
+            footerTemplate: typeof footer === "string" ? footer : "<span></span>",
+            margin: { top: "16mm", bottom: "18mm", left: "14mm", right: "14mm" },
+          },
+    );
   } finally {
     await page.close();
   }
@@ -89,12 +94,12 @@ createServer((req, res) => {
       return;
     }
     try {
-      const { html, footer } = JSON.parse(body);
+      const { html, footer, fullBleed } = JSON.parse(body);
       if (typeof html !== "string" || !html.startsWith("<!doctype html>")) {
         res.writeHead(400).end();
         return;
       }
-      const pdf = await render(html, footer);
+      const pdf = await render(html, footer, fullBleed === true);
       res.writeHead(200, { "content-type": "application/pdf", "cache-control": "no-store" }).end(pdf);
     } catch (error) {
       console.error("render failed", error instanceof Error ? error.message : error);

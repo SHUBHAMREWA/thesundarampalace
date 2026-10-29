@@ -4,20 +4,6 @@
  * These are categories from the requirements — not business facts.
  */
 
-export const FACILITY_KEYS = [
-  "ac",
-  "power_backup",
-  "stage",
-  "bridal_room",
-  "parking",
-  "lift",
-  "accessible",
-] as const;
-export type FacilityKey = (typeof FACILITY_KEYS)[number];
-
-export const HALL_LAYOUTS = ["THEATRE", "BANQUET", "FLOATING", "CLUSTER"] as const;
-export type HallLayoutKey = (typeof HALL_LAYOUTS)[number];
-
 export const MENU_CATEGORIES = ["veg", "jain", "non_veg", "custom"] as const;
 export const MENU_COURSES = [
   "welcome_drinks",
@@ -36,6 +22,9 @@ export const MEDIA_GROUPS = [
   "floor_plans",
   "catering",
   "decor",
+  "celebrations",
+  "about",
+  "testimonials",
   "gallery",
   "real_weddings",
   "brochure",
@@ -49,10 +38,8 @@ export const HOME_SECTION_TYPES = [
   "services",
   "catering",
   "decor",
-  "packages",
   "gallery",
   "reviews",
-  "dates",
   "contact",
 ] as const;
 export type HomeSectionType = (typeof HOME_SECTION_TYPES)[number];
@@ -60,14 +47,11 @@ export type HomeSectionType = (typeof HOME_SECTION_TYPES)[number];
 /** Public pages that each have a WebsitePage record (title, intro, SEO). */
 export const STANDARD_PAGES = [
   { slug: "home", title: "The Sundaram Palace", path: "/" },
-  { slug: "about", title: "About us", path: "/about" },
   { slug: "venues", title: "Venues", path: "/venues" },
   { slug: "catering", title: "Catering", path: "/catering" },
   { slug: "decor", title: "Décor themes", path: "/decor" },
   { slug: "services", title: "Celebrations we host", path: "/services" },
-  { slug: "packages", title: "Packages", path: "/packages" },
   { slug: "gallery", title: "Gallery", path: "/gallery" },
-  { slug: "contact", title: "Contact us", path: "/contact" },
   { slug: "plan-your-event", title: "Plan your event", path: "/plan-your-event" },
 ] as const;
 
@@ -95,6 +79,15 @@ export const DEFAULT_GALLERY_CATEGORIES = [
   { key: "events", name: "Events" },
 ] as const;
 
+/** Starting blog categories (topics only, no business facts). */
+export const DEFAULT_BLOG_CATEGORIES = [
+  { key: "wedding-planning", name: "Wedding planning" },
+  { key: "decor-ideas", name: "Décor ideas" },
+  { key: "food-and-menus", name: "Food and menus" },
+  { key: "rituals-and-traditions", name: "Rituals and traditions" },
+  { key: "news", name: "News" },
+] as const;
+
 /** Default homepage section headings (editable in the CMS). */
 export const DEFAULT_HOME_SECTIONS: { type: HomeSectionType; heading: string; visible: boolean }[] = [
   { type: "hero", heading: "The Sundaram Palace", visible: true },
@@ -103,9 +96,7 @@ export const DEFAULT_HOME_SECTIONS: { type: HomeSectionType; heading: string; vi
   { type: "services", heading: "Celebrations we host", visible: true },
   { type: "catering", heading: "Catering", visible: true },
   { type: "decor", heading: "Décor themes", visible: true },
-  { type: "packages", heading: "Packages", visible: true },
   { type: "gallery", heading: "Gallery", visible: true },
   { type: "reviews", heading: "Reviews", visible: true },
-  { type: "dates", heading: "Popular wedding dates", visible: true },
   { type: "contact", heading: "Visit us", visible: true },
 ];

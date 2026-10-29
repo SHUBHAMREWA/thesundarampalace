@@ -3,6 +3,7 @@
 // Phase 1: identity, permissions, settings, numbering, audit.
 // Phase 2: website CMS, venue facts, public menus, leads, notifications.
 // Phase 3: customers, private files, slots, bookings, quotations, money, documents.
+// Phase 4: tasks, vendors, expenses, data-subject requests.
 
 generator client {
   provider = "prisma-client"
@@ -35,6 +36,7 @@ model User {
   notifications Notification[]
   ownedBookings Booking[]         @relation("BookingOwner")
   subEvents     BookingSubEvent[] @relation("SubEventAssignee")
+  tasks         Task[]            @relation("TaskAssignee")
 
   @@map("user")
 }
@@ -271,13 +273,11 @@ model MediaAsset {
   caption            Json?
   photographerCredit String?
   usagePermission    String?
-  group              String // hero, halls, floor_plans, catering, decor, gallery, brochure
+  group              String // hero, halls, floor_plans, catering, decor, celebrations, about, gallery, brochure
   uploadedById       String?
   placements         MediaPlacement[]
   galleryItems       GalleryItem[]
   pagesHero          WebsitePage[]
-  hallsHero          Hall[]           @relation("HallHero")
-  hallsFloorPlan     Hall[]           @relation("HallFloorPlan")
   createdAt          DateTime         @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime         @updatedAt @db.Timestamptz(3)
 
@@ -338,63 +338,33 @@ model HomeSection {
   @@map("home_section")
 }
 
-enum HallLayout {
-  THEATRE
-  BANQUET
-  FLOATING
-  CLUSTER
-}
-
-/// Halls and lawns. Fact fields are nullable: unknown is shown as "coming soon", never 0.
+/// Halls and lawns. The website shows only the name, description and photos
+/// (photos are MediaPlacement rows, ownerType "hall"); capacity, area,
+/// facilities, floor plan and tour fields were removed on 28 Oct 2026.
 /// Booking fields (buffers, composite) are used from Phase 3.
 model Hall {
-  id                    String               @id @default(cuid())
-  slug                  String               @unique
+  id                    String            @id @default(cuid())
+  slug                  String            @unique
   name                  Json
-  summary               Json?
   description           Json?
-  areaSqFt              Int?
-  ceilingHeightFt       Decimal?             @db.Decimal(5, 2)
-  facilities            Json // [{ key, note? }]
-  eventTypeKeys         Json // ["wedding", ...]
-  slotsInfo             Json?
-  heroAssetId           String?
-  heroAsset             MediaAsset?          @relation("HallHero", fields: [heroAssetId], references: [id], onDelete: Restrict)
-  floorPlanAssetId      String?
-  floorPlanAsset        MediaAsset?          @relation("HallFloorPlan", fields: [floorPlanAssetId], references: [id], onDelete: Restrict)
-  tourUrl               String?
-  seo                   Json?
-  published             Boolean              @default(false)
-  active                Boolean              @default(true)
-  sortOrder             Int                  @default(0)
-  setupBufferMinutes    Int                  @default(0)
-  teardownBufferMinutes Int                  @default(0)
-  isComposite           Boolean              @default(false)
-  capacities            HallLayoutCapacity[]
+  published             Boolean           @default(false)
+  active                Boolean           @default(true)
+  sortOrder             Int               @default(0)
+  setupBufferMinutes    Int               @default(0)
+  teardownBufferMinutes Int               @default(0)
+  isComposite           Boolean           @default(false)
   leads                 Lead[]
   /// Phase 3: a composite space ("Hall A + Hall B") occupies each member hall.
-  members               HallComposition[]    @relation("CompositeHall")
-  memberOf              HallComposition[]    @relation("MemberHall")
+  members               HallComposition[] @relation("CompositeHall")
+  memberOf              HallComposition[] @relation("MemberHall")
   slotDefinitions       SlotDefinition[]
   subEvents             BookingSubEvent[]
   occupancies           SlotOccupancy[]
-  createdAt             DateTime             @default(now()) @db.Timestamptz(3)
-  updatedAt             DateTime             @updatedAt @db.Timestamptz(3)
+  createdAt             DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime          @updatedAt @db.Timestamptz(3)
 
   @@index([published, sortOrder])
   @@map("hall")
-}
-
-model HallLayoutCapacity {
-  id        String     @id @default(cuid())
-  hallId    String
-  hall      Hall       @relation(fields: [hallId], references: [id], onDelete: Cascade)
-  layout    HallLayout
-  minGuests Int?
-  maxGuests Int?
-
-  @@unique([hallId, layout])
-  @@map("hall_layout_capacity")
 }
 
 /// Menus shared by the website (publicVisible) and, from Phase 3, the CRM.
@@ -439,33 +409,24 @@ model DecorTheme {
   @@map("decor_theme")
 }
 
-/// Public packages. Prices show only when an administrator enables it.
-model Package {
-  id              String       @id @default(cuid())
-  slug            String       @unique
-  name            Json
-  description     Json?
-  inclusions      Json? // Localized, one item per line
-  addOns          Json?
-  terms           Json?
-  eventTypeKeys   Json
-  publicPrice     Decimal?     @db.Decimal(12, 2)
-  publicPriceNote Json?
-  showPublicPrice Boolean      @default(false)
-  published       Boolean      @default(false)
-  sortOrder       Int          @default(0)
-  /// CRM pricing (Phase 3). Quotations copy these values; later edits never change them.
-  crmPrice        Decimal?     @db.Decimal(12, 2)
-  perPlateRate    Decimal?     @db.Decimal(12, 2)
-  minPlates       Int?
-  taxCategoryId   String?
-  taxCategory     TaxCategory? @relation(fields: [taxCategoryId], references: [id], onDelete: Restrict)
-  active          Boolean      @default(true)
-  bookings        Booking[]
-  createdAt       DateTime     @default(now()) @db.Timestamptz(3)
-  updatedAt       DateTime     @updatedAt @db.Timestamptz(3)
+/// Guest reviews shown on the homepage. Only real reviews the guest agreed to
+/// share (consent); never invented (CLAUDE.md rule 1). The optional photo is a
+/// media_placement with ownerType "testimonial".
+model Testimonial {
+  id        String   @id @default(cuid())
+  name      String
+  /// e.g. { en: "Wedding, December 2025" }
+  event     Json?
+  quote     Json
+  /// 1 to 5 stars
+  rating    Int
+  consent   Boolean  @default(false)
+  published Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
-  @@map("package")
+  @@index([published, createdAt])
+  @@map("testimonial")
 }
 
 model GalleryCategory {
@@ -505,6 +466,65 @@ model AuspiciousDate {
   @@map("auspicious_date")
 }
 
+// ─── Blog and Real Weddings (Phase 5) ────────────────────────────────────────
+
+model BlogCategory {
+  id        String     @id @default(cuid())
+  key       String     @unique
+  name      Json
+  sortOrder Int        @default(0)
+  posts     BlogPost[]
+
+  @@map("blog_category")
+}
+
+model BlogPost {
+  id               String       @id @default(cuid())
+  slug             String       @unique
+  title            Json
+  summary          Json?
+  content          Json
+  featuredImageUrl String?
+  author           String       @default("The Sundaram Palace Team")
+  categoryKey      String
+  category         BlogCategory @relation(fields: [categoryKey], references: [key], onDelete: Restrict)
+  tags             Json?
+  published        Boolean      @default(false)
+  publishedAt      DateTime?    @db.Timestamptz(3)
+  metaTitle        Json?
+  metaDescription  Json?
+  sortOrder        Int          @default(0)
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@index([published, publishedAt])
+  @@map("blog_post")
+}
+
+model RealWeddingStory {
+  id                  String    @id @default(cuid())
+  slug                String    @unique
+  coupleName          Json
+  eventDate           DateTime? @db.Date
+  eventTypeKey        String
+  hallUsed            Json?
+  photographerCredit  String?
+  summary             Json?
+  story               Json?
+  coverImageUrl       String?
+  galleryImageUrls    Json?
+  coupleConsent       Boolean   @default(false)
+  photographerConsent Boolean   @default(false)
+  consentDate         DateTime? @db.Timestamptz(3)
+  published           Boolean   @default(false)
+  sortOrder           Int       @default(0)
+  createdAt           DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([published, sortOrder])
+  @@map("real_wedding_story")
+}
+
 // ─── Leads and messaging (Phase 2) ───────────────────────────────────────────
 
 model Lead {
@@ -541,6 +561,7 @@ model Lead {
   customerId        String?
   customer          Customer?      @relation(fields: [customerId], references: [id], onDelete: Restrict)
   bookings          Booking[]
+  tasks             Task[]
   activities        LeadActivity[]
   createdAt         DateTime       @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
@@ -598,27 +619,83 @@ model Notification {
   @@map("notification")
 }
 
-/// Outgoing email/WhatsApp/SMS. Never claims "sent" without a provider.
+/// Outgoing email/WhatsApp/SMS, and the message log. Never claims "sent"
+/// without a provider. WhatsApp rows move SENT → DELIVERED → READ (or FAILED)
+/// from the provider's webhooks.
 model Outbox {
-  id                String    @id @default(cuid())
+  id                String           @id @default(cuid())
   channel           String // email | whatsapp | sms
   template          String
   toAddress         String
   payload           Json
   purpose           String
-  status            String    @default("PENDING") // PENDING | SENT | FAILED | NOT_SENT_NO_PROVIDER | SKIPPED_NO_CONSENT
-  attempts          Int       @default(0)
-  nextAttemptAt     DateTime? @db.Timestamptz(3)
+  status            String           @default("PENDING") // PENDING | SENT | DELIVERED | READ | FAILED | NOT_SENT_NO_PROVIDER | SKIPPED_NO_CONSENT
+  attempts          Int              @default(0)
+  nextAttemptAt     DateTime?        @db.Timestamptz(3)
   lastError         String?
+  provider          String? // meta | twilio | resend
   providerMessageId String?
+  sentAt            DateTime?        @db.Timestamptz(3)
+  deliveredAt       DateTime?        @db.Timestamptz(3)
+  readAt            DateTime?        @db.Timestamptz(3)
+  failedAt          DateTime?        @db.Timestamptz(3)
+  campaignId        String?
+  campaign          MessageCampaign? @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  createdById       String?
   relatedType       String?
   relatedId         String?
-  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime  @updatedAt @db.Timestamptz(3)
+  createdAt         DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime         @updatedAt @db.Timestamptz(3)
 
   @@index([status, nextAttemptAt])
   @@index([relatedType, relatedId])
+  @@index([channel, createdAt])
+  @@index([campaignId])
+  @@index([providerMessageId])
   @@map("outbox")
+}
+
+/// One bulk WhatsApp send: an approved template sent to a filtered audience.
+model MessageCampaign {
+  id               String   @id @default(cuid())
+  name             String
+  channel          String   @default("whatsapp")
+  provider         String // meta | twilio
+  templateName     String
+  /// Meta: language code. Twilio: Content SID.
+  templateRef      String
+  templateCategory String // MARKETING | UTILITY | AUTHENTICATION
+  /// Values for {{1}}, {{2}}, …; "{name}" becomes each recipient's first name.
+  variables        Json
+  /// The audience filters used, kept for the record.
+  audience         Json
+  recipientCount   Int
+  skippedCount     Int      @default(0)
+  createdById      String?
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  messages         Outbox[]
+
+  @@index([createdAt])
+  @@map("message_campaign")
+}
+
+/// Replies and messages customers send to the business WhatsApp number.
+model InboundMessage {
+  id                String   @id @default(cuid())
+  channel           String   @default("whatsapp")
+  provider          String // meta | twilio
+  fromAddress       String // E.164
+  body              String
+  providerMessageId String   @unique
+  relatedType       String? // lead | customer (matched by phone)
+  relatedId         String?
+  receivedAt        DateTime @db.Timestamptz(3)
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([receivedAt])
+  @@index([fromAddress])
+  @@index([relatedType, relatedId])
+  @@map("inbound_message")
 }
 
 /// Conversion counts for reports. Never stores names, phones or emails.
@@ -649,15 +726,20 @@ model Customer {
   companyName     String?
   maritalStatus   String? // single | married | other | prefer_not_to_say
   dateOfBirth     DateTime?          @db.Date
+  /// Used only when the date of birth is unknown: birth year from an approximate age.
+  approxBirthYear Int?
   anniversary     DateTime?          @db.Date
   spouseName      String?
   categoryKey     String? // lookup_value(customer_category).key
-  professionKey   String? // lookup_value(profession).key
+  professionKeys  String[]           @default([]) // lookup_value(profession).key
   professionOther String?
   stateCode       String? // GST state code; default place of supply
   city            String?
   locality        String?
   address         String?
+  mapsUrl         String?
+  /// Private-store key of the profile photo (Cloudinary "authenticated" WebP when configured).
+  photoKey        String?
   notes           String?
   createdById     String?
   /// Set when this record was merged into another customer.
@@ -672,6 +754,8 @@ model Customer {
 
   @@index([mobile])
   @@index([fullName])
+  /// Partial-name search (pg_trgm, created in phase3_integrity).
+  @@index([fullName(ops: raw("gin_trgm_ops"))], type: Gin, map: "customer_fullName_trgm_idx")
   @@index([deletedAt, createdAt])
   @@map("customer")
 }
@@ -702,7 +786,9 @@ model CustomerDocument {
   customer     Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
   partyId      String?
   party        BrideGroomParty? @relation(fields: [partyId], references: [id], onDelete: Restrict)
-  category     String // PHOTO | PAN | AADHAAR_MASKED | OTHER
+  category     String // PHOTO | AADHAAR_MASKED | PAN | VOTER_ID | DRIVING_LICENCE | PASSPORT | OTHER
+  /// ID number as stored: Aadhaar keeps only the last 4 digits ("XXXX XXXX 1234").
+  idNumber     String?
   label        String?
   purpose      String?
   storageKey   String           @unique
@@ -775,7 +861,6 @@ model TaxCategory {
   active       Boolean       @default(true)
   rates        TaxRate[]
   services     ServiceItem[]
-  packages     Package[]
   menuPackages MenuPackage[]
   createdAt    DateTime      @default(now()) @db.Timestamptz(3)
   updatedAt    DateTime      @updatedAt @db.Timestamptz(3)
@@ -800,18 +885,19 @@ model TaxRate {
 
 /// Chargeable services for quotations (hall rental, décor, lighting, …). No room services.
 model ServiceItem {
-  id            String      @id @default(cuid())
+  id            String       @id @default(cuid())
   name          String
   categoryKey   String // lookup_value(service_category).key
   description   String?
   unit          String // e.g. "per event", "per hour"
-  defaultPrice  Decimal?    @db.Decimal(12, 2)
-  taxCategoryId String
-  taxCategory   TaxCategory @relation(fields: [taxCategoryId], references: [id], onDelete: Restrict)
-  active        Boolean     @default(true)
-  sortOrder     Int         @default(0)
-  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime    @updatedAt @db.Timestamptz(3)
+  defaultPrice  Decimal?     @db.Decimal(12, 2)
+  /// Unused since 26 Oct 2026: the business charges no GST.
+  taxCategoryId String?
+  taxCategory   TaxCategory? @relation(fields: [taxCategoryId], references: [id], onDelete: Restrict)
+  active        Boolean      @default(true)
+  sortOrder     Int          @default(0)
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
 
   @@index([active, sortOrder])
   @@map("service_item")
@@ -827,8 +913,9 @@ model MenuPackage {
   minPlates      Int?
   /// [{ course: "starters", choose: 3 }] — items come from the menu's course.
   selectionRules Json
-  taxCategoryId  String
-  taxCategory    TaxCategory             @relation(fields: [taxCategoryId], references: [id], onDelete: Restrict)
+  /// Unused since 26 Oct 2026: plates use the Catering GST from Settings → Tax.
+  taxCategoryId  String?
+  taxCategory    TaxCategory?            @relation(fields: [taxCategoryId], references: [id], onDelete: Restrict)
   active         Boolean                 @default(true)
   sortOrder      Int                     @default(0)
   selections     SubEventMenuSelection[]
@@ -916,19 +1003,23 @@ model Booking {
   mainEventName              String
   mainEventTypeKey           String
   status                     BookingStatus          @default(ENQUIRY_HOLD)
-  /// First and last sub-event dates, maintained by the booking service.
+  /// Event dates (from – to), entered on the booking; functions outside the range widen it.
   startDate                  DateTime?              @db.Date
   endDate                    DateTime?              @db.Date
   expectedGuests             Int?
-  packageId                  String?
-  package                    Package?               @relation(fields: [packageId], references: [id], onDelete: Restrict)
   ownerId                    String?
   owner                      User?                  @relation("BookingOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   placeOfSupplyStateCode     String?
   acceptedQuotationId        String?                @unique
   acceptedQuotation          QuotationVersion?      @relation("AcceptedQuotation", fields: [acceptedQuotationId], references: [id], onDelete: Restrict)
+  /// Unused since 26 Oct 2026 (no GST).
+  foodGst                    Boolean                @default(false)
   cancellationPolicySnapshot Json?
   depositRequired            Decimal?               @db.Decimal(12, 2)
+  /// What the booking was agreed for, entered when it is made. An accepted quotation's total takes over once there is one.
+  bookingAmount              Decimal?               @db.Decimal(12, 2)
+  /// The day the booking was taken (defaults to the day it was entered).
+  bookedOn                   DateTime?              @db.Date
   notes                      String?
   internalInstructions       String?
   confirmedAt                DateTime?              @db.Timestamptz(3)
@@ -949,6 +1040,9 @@ model Booking {
   creditNotes                CreditNote[]
   statusHistory              BookingStatusHistory[]
   documents                  GeneratedDocument[]
+  tasks                      Task[]
+  vendorAssignments          VendorAssignment[]
+  expenses                   Expense[]
   createdAt                  DateTime               @default(now()) @db.Timestamptz(3)
   updatedAt                  DateTime               @updatedAt @db.Timestamptz(3)
 
@@ -1478,4 +1572,184 @@ model GeneratedDocument {
 
   @@index([bookingId, documentType, createdAt])
   @@map("generated_document")
+}
+
+// ─── Operations (Phase 4) ────────────────────────────────────────────────────
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+/// A reusable checklist (e.g. "Wedding event checklist"). Templates marked
+/// autoOnConfirm create their tasks when a booking is confirmed.
+model TaskTemplate {
+  id            String             @id @default(cuid())
+  name          String
+  description   String?
+  /// Only for these main event types (empty = all).
+  eventTypeKeys Json               @default("[]")
+  autoOnConfirm Boolean            @default(false)
+  active        Boolean            @default(true)
+  items         TaskTemplateItem[]
+  createdAt     DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@map("task_template")
+}
+
+model TaskTemplateItem {
+  id          String       @id @default(cuid())
+  templateId  String
+  template    TaskTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  /// Due date relative to the first function (negative = before).
+  offsetDays  Int          @default(0)
+  priority    TaskPriority @default(NORMAL)
+  /// Default assignee; null = the booking's owner.
+  assigneeId  String?
+  sortOrder   Int          @default(0)
+
+  @@index([templateId, sortOrder])
+  @@map("task_template_item")
+}
+
+model Task {
+  id            String       @id @default(cuid())
+  title         String
+  description   String?
+  assigneeId    String?
+  assignee      User?        @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  dueAt         DateTime?    @db.Timestamptz(3)
+  priority      TaskPriority @default(NORMAL)
+  status        TaskStatus   @default(OPEN)
+  bookingId     String?
+  booking       Booking?     @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  subEventId    String?
+  leadId        String?
+  lead          Lead?        @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  customerId    String?
+  templateId    String?
+  completedAt   DateTime?    @db.Timestamptz(3)
+  completedById String?
+  createdById   String?
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@index([assigneeId, status, dueAt])
+  @@index([bookingId])
+  @@index([status, dueAt])
+  @@map("task")
+}
+
+model Vendor {
+  id          String             @id @default(cuid())
+  name        String
+  categoryKey String // lookup_value(vendor_category).key
+  contactName String?
+  phone       String?
+  email       String?
+  partner     Boolean            @default(false)
+  notes       String?
+  active      Boolean            @default(true)
+  assignments VendorAssignment[]
+  expenses    Expense[]
+  createdAt   DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@index([categoryKey, active])
+  @@map("vendor")
+}
+
+model VendorAssignment {
+  id          String   @id @default(cuid())
+  vendorId    String
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  subEventId  String?
+  service     String
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([bookingId])
+  @@index([vendorId])
+  @@map("vendor_assignment")
+}
+
+enum ExpensePaymentStatus {
+  UNPAID
+  PARTLY_PAID
+  PAID
+}
+
+/// Booking-related (or general) costs. Changes are audit-logged with before/after values.
+model Expense {
+  id            String               @id @default(cuid())
+  bookingId     String?
+  booking       Booking?             @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  categoryKey   String // lookup_value(expense_category).key
+  vendorId      String?
+  vendor        Vendor?              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  description   String
+  amount        Decimal              @db.Decimal(12, 2)
+  incurredOn    DateTime             @db.Date
+  paymentStatus ExpensePaymentStatus @default(UNPAID)
+  notes         String?
+  recordedById  String
+  deletedAt     DateTime?            @db.Timestamptz(3)
+  deletedReason String?
+  createdAt     DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime             @updatedAt @db.Timestamptz(3)
+
+  @@index([bookingId])
+  @@index([incurredOn])
+  @@map("expense")
+}
+
+enum DataRequestKind {
+  ACCESS
+  CORRECTION
+  DELETION
+}
+
+enum DataRequestStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+/// DPDP Act requests from a person about their own data (access, correction, deletion).
+model DataSubjectRequest {
+  id          String            @id @default(cuid())
+  reference   String            @unique
+  subjectType String // LEAD | CUSTOMER
+  subjectId   String
+  kind        DataRequestKind
+  status      DataRequestStatus @default(OPEN)
+  details     String
+  receivedOn  DateTime          @db.Date
+  dueOn       DateTime          @db.Date
+  resolution  String?
+  handledById String?
+  completedAt DateTime?         @db.Timestamptz(3)
+  createdById String
+  createdAt   DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime          @updatedAt @db.Timestamptz(3)
+
+  @@index([status, dueOn])
+  @@index([subjectType, subjectId])
+  @@map("data_subject_request")
 }

@@ -61,8 +61,8 @@ PDF_RENDERER=service            # local (development) | service | none
 PDF_SERVICE_URL=https://<pdf-service>.onrender.com
 PDF_SERVICE_SECRET=change-me-40-random-characters
 
-# Phase 5 — WhatsApp API stays off in free mode (wa.me links need no config)
-WHATSAPP_PROVIDER=none
+# WhatsApp API keys are NOT env vars: enter them in CRM Settings → WhatsApp (encrypted, tested on save).
+# NEXT_PUBLIC_SITE_URL must be the public https URL, because webhook URLs and Twilio signatures use it.
 ```
 
 The real template is `.env.example` in the repository root. All variables are validated at startup with Zod (`src/lib/env.ts`); the app refuses to boot with a missing or malformed value in staging/production.

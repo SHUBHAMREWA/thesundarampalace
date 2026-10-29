@@ -64,6 +64,8 @@ export function ConfirmAction({
   children,
   triggerVariant,
   triggerSize = "sm",
+  triggerClassName,
+  triggerContent,
   money = false,
 }: {
   action: BoundAction;
@@ -78,6 +80,9 @@ export function ConfirmAction({
   children?: ReactNode;
   triggerVariant?: ComponentProps<typeof Button>["variant"];
   triggerSize?: ComponentProps<typeof Button>["size"];
+  /** Replaces the trigger look (e.g. an icon-only row button); `label` stays its accessible name. */
+  triggerClassName?: string;
+  triggerContent?: ReactNode;
   /** Adds an idempotency key (money entries). */
   money?: boolean;
 }) {
@@ -91,8 +96,14 @@ export function ConfirmAction({
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>
-        <Button variant={triggerVariant ?? (destructive ? "ghost" : "outline")} size={triggerSize} className={destructive ? "text-danger" : undefined}>
-          {label}
+        <Button
+          variant={triggerVariant ?? (destructive ? "ghost" : "outline")}
+          size={triggerSize}
+          className={triggerClassName ?? (destructive ? "text-danger" : undefined)}
+          aria-label={triggerContent ? label : undefined}
+          title={triggerContent ? label : undefined}
+        >
+          {triggerContent ?? label}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>

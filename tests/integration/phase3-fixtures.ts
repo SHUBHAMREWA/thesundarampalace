@@ -28,7 +28,7 @@ export async function setupPhase3(prefix: string) {
   await seedSettings(db);
 
   const users: Record<string, string> = {};
-  for (const role of ["super_admin", "manager", "sales", "accounts", "operations", "kitchen"] as const) {
+  for (const role of ["super_admin", "manager", "sales", "accounts", "operations"] as const) {
     const user = await db.user.create({ data: { name: `${prefix} ${role}`, email: `${prefix}-${role}@example.test` } });
     const saved = await db.role.findUniqueOrThrow({ where: { key: role } });
     await db.userRole.create({ data: { userId: user.id, roleId: saved.id } });
@@ -36,7 +36,7 @@ export async function setupPhase3(prefix: string) {
   }
 
   const hall = (slug: string, name: string, extra: object = {}) =>
-    db.hall.create({ data: { slug: `${prefix}-${slug}`, name: { en: name }, facilities: [], eventTypeKeys: [], setupBufferMinutes: 60, teardownBufferMinutes: 60, ...extra } });
+    db.hall.create({ data: { slug: `${prefix}-${slug}`, name: { en: name }, published: true, ...extra } });
   const hallA = await hall("a", "Sample Hall A");
   const hallB = await hall("b", "Sample Hall B");
   const grand = await hall("grand", "Sample Grand Hall", { isComposite: true });
@@ -46,8 +46,9 @@ export async function setupPhase3(prefix: string) {
       { compositeHallId: grand.id, memberHallId: hallB.id },
     ],
   });
-  const morning = await db.slotDefinition.create({ data: { name: "Sample morning", startTime: "08:00", endTime: "15:00" } });
-  const evening = await db.slotDefinition.create({ data: { name: "Sample evening", startTime: "18:00", endTime: "01:00" } });
+  // Typical function times (there are no fixed slots; staff type each function's times).
+  const morning = { startTime: "08:00", endTime: "15:00" };
+  const evening = { startTime: "18:00", endTime: "01:00" };
 
   const taxFood = await db.taxCategory.create({
     data: { name: `${prefix} sample catering tax`, sacCode: "996334", rates: { create: { ratePercent: "5.00", effectiveFrom: new Date("2020-01-01T00:00:00Z") } } },
@@ -72,12 +73,13 @@ export async function setupPhase3(prefix: string) {
     include: { items: true },
   });
   const menuPackage = await db.menuPackage.create({
-    data: { menuId: menu.id, name: "Sample plate", perPlateRate: "850.00", minPlates: 100, selectionRules: [{ course: "starters", choose: 2 }], taxCategoryId: taxFood.id },
+    data: { menuId: menu.id, name: "Sample plate", perPlateRate: "850.00", minPlates: 100, selectionRules: [{ course: "starters", choose: 2 }] },
   });
   const policy = await db.cancellationPolicy.create({
     data: { name: `${prefix} sample policy`, slabs: [{ daysBeforeEventMin: 90, refundPercent: "75.00" }, { daysBeforeEventMin: 30, refundPercent: "50.00" }, { daysBeforeEventMin: 0, refundPercent: "0.00" }] },
   });
   await saveSettings("bookingPolicy", { ...DEFAULT_SETTINGS.bookingPolicy, defaultCancellationPolicyId: policy.id }, users.super_admin);
+  await saveSettings("tax", { ...DEFAULT_SETTINGS.tax, cateringTaxCategoryId: taxFood.id }, users.super_admin);
 
   return { users, hallA, hallB, grand, morning, evening, taxFood, taxHall, menu, menuPackage, policy };
 }

@@ -113,10 +113,10 @@ No dark theme is planned: the brand is light ivory and the CRM is used in office
 | Role | Font | Loaded via | Weights |
 |---|---|---|---|
 | Display / headings (website, PDFs) | Cormorant Garamond (fallback Playfair Display) | `next/font/google` | 500, 600 |
-| Body / UI (website and all of CRM) | Inter (or Manrope) | `next/font/google` | 400, 500, 600 |
-| Hindi | Tiro Devanagari Hindi (or Noto Serif Devanagari) | `next/font/google`, applied with `:lang(hi)` | 400 |
+| Body / UI (website and all of CRM) | Inter (or Manrope) | `next/font/google` | 300 (website introductions), 400, 500, 600 |
+| Hindi | Tiro Devanagari Hindi (or Noto Serif Devanagari) | `next/font/google`, applied with `:lang(hi)` and as the display-font fallback for Devanagari | 400 |
 
-Website scale: h1 `clamp(2.5rem, 5vw, 4.25rem)`, h2 `clamp(1.9rem, 3.5vw, 2.75rem)`, h3 `1.5rem`, body `1.0625rem` with line-height 1.7. One `h1` per page.
+Website scale (revised 28 Oct 2026 after comparing Taj and Sayaji on a 375px phone): h1 `clamp(2rem, 1.25rem + 3.6vw, 4rem)` and h2 `clamp(1.6rem, 1.2rem + 1.8vw, 2.6rem)`, both in spaced capitals (letter-spacing 0.05em / 0.07em); h3 `clamp(1.3rem, …, 1.5rem)`; intro text Inter 300 at 1rem (1.0625rem from 768px), line-height 1.75. Hindi headings keep normal case and spacing. One `h1` per page.
 
 The CRM uses the sans font everywhere except the logo.
 
@@ -133,7 +133,7 @@ All from shadcn/ui in `src/components/ui`, themed by tokens and extended with `c
 | Feedback | Toast, Alert, Badge (status variants map to success/warning/danger/info), Skeleton, EmptyState, ErrorState, ConfirmDialog |
 | Layout | Container, Section (website rhythm), PageHeader + Breadcrumbs (CRM), Sidebar (CRM desktop), MobileNav, Card |
 | Data | DataTable (server-side search, filters, sort, pagination), DetailList, Timeline |
-| Website | Hero (video with poster + reduced-motion fallback), SectionEyebrow with gold divider, HallCard, CTA band, FloatingWhatsApp, LanguageToggle |
+| Website | Hero (video with poster + reduced-motion fallback), SectionEyebrow with gold divider, HallCard, CTA band, FloatingActions (location + WhatsApp, bottom-right on every screen size), LanguageToggle |
 
 ## 7. Patterns
 
@@ -152,7 +152,7 @@ All from shadcn/ui in `src/components/ui`, themed by tokens and extended with `c
 
 ### PDFs
 - Elegant Royal: ivory page, `primary-deep` header band, thin gold rule, Cormorant headings.
-- Kitchen Sheet: black on white, large text, no colour reliance, no prices.
+- Plain (Food Menu for the caterer): black on white, large text, no colour reliance, no prices.
 
 ## 8. Motion and accessibility
 
@@ -173,4 +173,4 @@ All from shadcn/ui in `src/components/ui`, themed by tokens and extended with `c
 - `Alert` has `warning` and `success` variants (status tokens, outlined) for booking warnings such as "another hold on this slot".
 - Booking states use status tokens, not brand pinks: enquiry hold = info, tentative/quotation sent = warning, confirmed/in progress = success, cancelled = danger.
 - Calendar: confirmed = solid primary, tentative = warning outline, hold = dashed info outline, waitlist = dashed muted, released = struck through. A legend is always shown.
-- Documents (PDF/print) read the colour tokens from `globals.css` at render time; templates contain no colour literals. Kitchen sheets are black on white with 13 pt text.
+- Documents (PDF/print) read the colour tokens from `globals.css` at render time; templates contain no colour literals. The plain Food Menu template is black on white with 13 pt text.

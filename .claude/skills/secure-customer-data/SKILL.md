@@ -9,8 +9,8 @@ description: Use when working on authentication, roles and permissions, file upl
 - Permission keys like `leads.read`, `leads.assign`, `bookings.override_conflict`, `payments.create`, `invoices.issue`, `documents.sensitive.read`, `settings.manage`.
 - Roles map to permission sets in the database; code checks permissions, not role names.
 - Every Server Action / Route Handler: authenticate → `assertPermission(user, key, resource?)` → validate input with Zod → act. No exceptions for "internal" endpoints.
-- Data shaping: return only fields the caller may see (e.g. Operations never receives payment data; Kitchen sees only kitchen sheets).
-- 2FA (TOTP) required for Super Admin, Admin, Accounts. Session cookies `HttpOnly`, `Secure`, `SameSite=Lax`, rotation on privilege change.
+- Data shaping: return only fields the caller may see (e.g. Operations never receives payment data; the Food Menu never contains prices).
+- 2FA (TOTP) is optional per user (owner decision, docs/security.md); a role can require it with `Role.requires2fa`. Session cookies `HttpOnly`, `Secure`, `SameSite=Lax`, rotation on privilege change.
 
 ## Uploads
 - Validate by content sniffing (magic bytes), not extension; allowlist types (JPEG, PNG, WebP, PDF); size limits from Settings.

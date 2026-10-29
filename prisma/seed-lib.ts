@@ -6,6 +6,7 @@ import type { PrismaClient } from "../src/generated/prisma/client";
 import { PERMISSIONS, ROLES } from "../src/lib/permissions/registry";
 import { DEFAULT_LOOKUPS } from "../src/lib/settings/lookups";
 import {
+  DEFAULT_BLOG_CATEGORIES,
   DEFAULT_GALLERY_CATEGORIES,
   DEFAULT_HOME_SECTIONS,
   DEFAULT_SERVICES,
@@ -103,6 +104,13 @@ export async function seedCms(db: PrismaClient) {
   }
   for (const [index, category] of DEFAULT_GALLERY_CATEGORIES.entries()) {
     await db.galleryCategory.upsert({
+      where: { key: category.key },
+      update: {},
+      create: { key: category.key, name: { en: category.name }, sortOrder: index * 10 },
+    });
+  }
+  for (const [index, category] of DEFAULT_BLOG_CATEGORIES.entries()) {
+    await db.blogCategory.upsert({
       where: { key: category.key },
       update: {},
       create: { key: category.key, name: { en: category.name }, sortOrder: index * 10 },

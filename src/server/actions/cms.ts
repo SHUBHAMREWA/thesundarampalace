@@ -2,43 +2,55 @@
 
 import { updateTag } from "next/cache";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
-import { FACILITY_KEYS, HALL_LAYOUTS, MENU_COURSES } from "@/lib/content/catalog";
+import { MENU_COURSES } from "@/lib/content/catalog";
 import { localizedFromForm } from "@/lib/i18n/localized";
 import { getCurrentUser } from "@/server/auth/session";
 import { CMS_TAG } from "@/server/cms/queries";
 import { UnauthenticatedError } from "@/server/policies/authorize";
 import {
-  addAuspiciousDate,
-  addGalleryItems,
+  aboutPhotosSchema,
+  addGalleryPhotos,
+  addGalleryPhotosSchema,
+  deleteGalleryCategory,
   createServicePage,
-  dateSchema,
   decorSchema,
-  deleteAuspiciousDate,
   deleteDecorTheme,
   deleteHall,
   deleteMenu,
-  deletePackage,
   deleteServicePage,
+  deleteTestimonial,
+  galleryItemSchema,
   hallSchema,
   homeSectionSchema,
   menuSchema,
-  packageSchema,
+  moveHomeSection,
   pageSchema,
   removeGalleryItem,
+  saveAboutPhotos,
   saveDecorTheme,
   saveHall,
   saveHomeSection,
   saveMenu,
-  savePackage,
+  saveTestimonial,
+  testimonialSchema,
   savePage,
   updateGalleryItem,
 } from "@/server/services/cms";
+import {
+  blogPostSchema,
+  deleteBlogPost,
+  saveBlogPost,
+} from "@/server/services/blog";
 import {
   assetMetaSchema,
   deleteAsset,
   registerSchema,
   registerUploadedAsset,
+  type MediaOption,
+  replaceAssetFile,
+  replaceSchema,
   updateAssetMeta,
   uploadSignature,
 } from "@/server/services/media";
@@ -51,6 +63,15 @@ async function actor() {
   return user;
 }
 
+/**
+ * After deleting the record an editor is looking at, go back to its list on
+ * the server. Refreshing the deleted record's own page would show "not found".
+ */
+function leaveDeletedPage(state: ActionState): ActionState {
+  if (state.ok && state.redirectTo) redirect(state.redirectTo);
+  return state;
+}
+
 /** Public pages are cached until the CMS changes (docs/architecture.md ADR-02). */
 function publishChanges(adminPath?: string) {
   updateTag(CMS_TAG);
@@ -58,11 +79,18 @@ function publishChanges(adminPath?: string) {
 }
 
 const loc = localizedFromForm;
-const seoFrom = (form: FormData) => ({ title: loc(form, "seo.title"), description: loc(form, "seo.description") });
+const seoFrom = (form: FormData) => ({
+  title: loc(form, "seo.title"),
+  description: loc(form, "seo.description"),
+});
 
 // ─── Pages and homepage ─────────────────────────────────────────────────────
 
-export async function savePageAction(id: string, _prev: ActionState, form: FormData): Promise<ActionState> {
+export async function savePageAction(
+  id: string,
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
   return runAction(async () => {
     const input = pageSchema.parse({
       title: loc(form, "title"),
@@ -70,6 +98,7 @@ export async function savePageAction(id: string, _prev: ActionState, form: FormD
       body: loc(form, "body"),
       heroAssetId: text(form, "heroAssetId"),
       seo: seoFrom(form),
+      imageIds: form.getAll("imageIds").map(String),
       published: checkbox(form, "published"),
       sortOrder: text(form, "sortOrder"),
     });
@@ -79,32 +108,73 @@ export async function savePageAction(id: string, _prev: ActionState, form: FormD
   });
 }
 
-export async function createServicePageAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+export async function saveAboutPhotosAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
   return runAction(async () => {
-    const page = await createServicePage(await actor(), { title: text(form, "title") ?? "", slug: text(form, "slug") ?? "" });
-    publishChanges("/admin/cms/pages");
-    return { message: "Service page created (unpublished).", redirectTo: `/admin/cms/pages/${page.id}` };
+    await saveAboutPhotos(
+      await actor(),
+      aboutPhotosSchema.parse({
+        headerAssetId: text(form, "headerAssetId"),
+        ownerAssetId: text(form, "ownerAssetId"),
+      }),
+    );
+    publishChanges("/admin/cms/about");
+    return { message: "About page photos saved. The website is updated." };
   });
 }
 
-export async function deleteServicePageAction(id: string, _prev: ActionState): Promise<ActionState> {
+export async function createServicePageAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
   return runAction(async () => {
-    await deleteServicePage(await actor(), id);
+    const page = await createServicePage(await actor(), {
+      title: text(form, "title") ?? "",
+      slug: text(form, "slug") ?? "",
+    });
     publishChanges("/admin/cms/pages");
-    return { message: "Service page deleted.", redirectTo: "/admin/cms/pages" };
+    return {
+      message: "Service page created (unpublished).",
+      redirectTo: `/admin/cms/pages/${page.id}`,
+    };
   });
 }
 
-export async function saveHomeSectionAction(type: string, _prev: ActionState, form: FormData): Promise<ActionState> {
+export async function deleteServicePageAction(
+  id: string,
+  _prev: ActionState,
+): Promise<ActionState> {
+  return leaveDeletedPage(
+    await runAction(async () => {
+      await deleteServicePage(await actor(), id);
+      publishChanges("/admin/cms/pages");
+      return {
+        message: "Service page deleted.",
+        redirectTo: "/admin/cms/pages",
+      };
+    }),
+  );
+}
+
+export async function saveHomeSectionAction(
+  type: string,
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
   return runAction(async () => {
     const input = homeSectionSchema.parse({
       heading: loc(form, "heading"),
       intro: loc(form, "intro"),
       subheading: loc(form, "subheading"),
+      heroMedia: text(form, "heroMedia") ?? undefined,
+      slideAssetIds: form.getAll("slideAssetIds").map(String),
+      videoAssetId: text(form, "videoAssetId"),
+      pictureAssetIds: form.getAll("pictureAssetIds").map(String),
       videoPath: text(form, "videoPath"),
       posterAssetId: text(form, "posterAssetId"),
       visible: checkbox(form, "visible"),
-      sortOrder: text(form, "sortOrder"),
     });
     await saveHomeSection(await actor(), type, input);
     publishChanges("/admin/cms/home");
@@ -112,53 +182,67 @@ export async function saveHomeSectionAction(type: string, _prev: ActionState, fo
   });
 }
 
+/** Up/down buttons on the Homepage list (plain forms, so they work before the page finishes loading). */
+export async function moveHomeSectionAction(
+  type: string,
+  direction: "up" | "down",
+): Promise<void> {
+  await moveHomeSection(await actor(), type, direction);
+  publishChanges("/admin/cms/home");
+}
+
 // ─── Halls ──────────────────────────────────────────────────────────────────
 
-export async function saveHallAction(id: string | null, _prev: ActionState, form: FormData): Promise<ActionState> {
+export async function saveHallAction(
+  id: string | null,
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
   return runAction(async () => {
     const input = hallSchema.parse({
       name: loc(form, "name"),
       slug: text(form, "slug"),
-      summary: loc(form, "summary"),
       description: loc(form, "description"),
-      areaSqFt: text(form, "areaSqFt"),
-      ceilingHeightFt: text(form, "ceilingHeightFt"),
-      capacities: HALL_LAYOUTS.map((layout) => ({
-        layout,
-        minGuests: text(form, `capacity.${layout}.min`),
-        maxGuests: text(form, `capacity.${layout}.max`),
-      })),
-      facilities: FACILITY_KEYS.filter((key) => checkbox(form, `facility.${key}`)).map((key) => ({
-        key,
-        note: text(form, `facility.${key}.note`) || undefined,
-      })),
-      eventTypeKeys: form.getAll("eventTypeKeys").map(String),
-      slotsInfo: loc(form, "slotsInfo"),
-      heroAssetId: text(form, "heroAssetId"),
-      floorPlanAssetId: text(form, "floorPlanAssetId"),
       imageIds: form.getAll("imageIds").map(String),
-      tourUrl: text(form, "tourUrl"),
-      seo: seoFrom(form),
       published: checkbox(form, "published"),
       sortOrder: text(form, "sortOrder"),
     });
     const hallId = await saveHall(await actor(), id, input);
     publishChanges("/admin/cms/halls");
-    return { message: "Venue saved. The website is updated.", redirectTo: id ? undefined : `/admin/cms/halls/${hallId}` };
+    return {
+      message: "Venue saved. The website is updated.",
+      redirectTo: id ? undefined : `/admin/cms/halls/${hallId}`,
+    };
   });
 }
 
-export async function deleteHallAction(id: string, _prev: ActionState): Promise<ActionState> {
-  return runAction(async () => {
-    await deleteHall(await actor(), id);
-    publishChanges("/admin/cms/halls");
-    return { message: "Venue deleted.", redirectTo: "/admin/cms/halls" };
-  });
+export async function deleteHallAction(
+  id: string,
+  _prev: ActionState,
+  form?: FormData,
+): Promise<ActionState> {
+  return leaveDeletedPage(
+    await runAction(async () => {
+      const { photosDeleted, archived } = await deleteHall(await actor(), id, {
+        deletePhotos: form ? checkbox(form, "deletePhotos") : false,
+      });
+      publishChanges("/admin/cms/halls");
+      revalidatePath("/admin/cms/media");
+      return {
+        message: `Venue ${archived ? "removed (old bookings keep its name)" : "deleted"}${photosDeleted ? `, with ${photosDeleted} photo${photosDeleted === 1 ? "" : "s"}` : ""}.`,
+        redirectTo: "/admin/cms/halls",
+      };
+    }),
+  );
 }
 
-// ─── Menus, décor, packages ─────────────────────────────────────────────────
+// ─── Menus, décor ─────────────────────────────────────────────────
 
-export async function saveMenuAction(id: string | null, _prev: ActionState, form: FormData): Promise<ActionState> {
+export async function saveMenuAction(
+  id: string | null,
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
   return runAction(async () => {
     const input = menuSchema.parse({
       name: loc(form, "name"),
@@ -166,23 +250,37 @@ export async function saveMenuAction(id: string | null, _prev: ActionState, form
       description: loc(form, "description"),
       publicVisible: checkbox(form, "publicVisible"),
       sortOrder: text(form, "sortOrder"),
-      courses: Object.fromEntries(MENU_COURSES.map((c) => [c, loc(form, `course.${c}`)])),
+      courses: Object.fromEntries(
+        MENU_COURSES.map((c) => [c, loc(form, `course.${c}`)]),
+      ),
     });
     const menuId = await saveMenu(await actor(), id, input);
     publishChanges("/admin/cms/menus");
-    return { message: "Menu saved.", redirectTo: id ? undefined : `/admin/cms/menus/${menuId}` };
+    return {
+      message: "Menu saved.",
+      redirectTo: id ? undefined : `/admin/cms/menus/${menuId}`,
+    };
   });
 }
 
-export async function deleteMenuAction(id: string, _prev: ActionState): Promise<ActionState> {
-  return runAction(async () => {
-    await deleteMenu(await actor(), id);
-    publishChanges("/admin/cms/menus");
-    return { message: "Menu deleted.", redirectTo: "/admin/cms/menus" };
-  });
+export async function deleteMenuAction(
+  id: string,
+  _prev: ActionState,
+): Promise<ActionState> {
+  return leaveDeletedPage(
+    await runAction(async () => {
+      await deleteMenu(await actor(), id);
+      publishChanges("/admin/cms/menus");
+      return { message: "Menu deleted.", redirectTo: "/admin/cms/menus" };
+    }),
+  );
 }
 
-export async function saveDecorAction(id: string | null, _prev: ActionState, form: FormData): Promise<ActionState> {
+export async function saveDecorAction(
+  id: string | null,
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
   return runAction(async () => {
     const input = decorSchema.parse({
       name: loc(form, "name"),
@@ -194,101 +292,190 @@ export async function saveDecorAction(id: string | null, _prev: ActionState, for
     });
     const themeId = await saveDecorTheme(await actor(), id, input);
     publishChanges("/admin/cms/decor");
-    return { message: "Theme saved.", redirectTo: id ? undefined : `/admin/cms/decor/${themeId}` };
+    return {
+      message: "Theme saved.",
+      redirectTo: id ? undefined : `/admin/cms/decor/${themeId}`,
+    };
   });
 }
 
-export async function deleteDecorAction(id: string, _prev: ActionState): Promise<ActionState> {
-  return runAction(async () => {
-    await deleteDecorTheme(await actor(), id);
-    publishChanges("/admin/cms/decor");
-    return { message: "Theme deleted.", redirectTo: "/admin/cms/decor" };
-  });
+export async function deleteDecorAction(
+  id: string,
+  _prev: ActionState,
+): Promise<ActionState> {
+  return leaveDeletedPage(
+    await runAction(async () => {
+      await deleteDecorTheme(await actor(), id);
+      publishChanges("/admin/cms/decor");
+      return { message: "Theme deleted.", redirectTo: "/admin/cms/decor" };
+    }),
+  );
 }
 
-export async function savePackageAction(id: string | null, _prev: ActionState, form: FormData): Promise<ActionState> {
+export async function saveTestimonialAction(
+  id: string | null,
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
   return runAction(async () => {
-    const input = packageSchema.parse({
-      name: loc(form, "name"),
-      slug: text(form, "slug"),
-      description: loc(form, "description"),
-      inclusions: loc(form, "inclusions"),
-      addOns: loc(form, "addOns"),
-      terms: loc(form, "terms"),
-      eventTypeKeys: form.getAll("eventTypeKeys").map(String),
-      publicPrice: text(form, "publicPrice"),
-      publicPriceNote: loc(form, "publicPriceNote"),
-      showPublicPrice: checkbox(form, "showPublicPrice"),
+    const input = testimonialSchema.parse({
+      name: text(form, "name") ?? "",
+      event: loc(form, "event"),
+      quote: loc(form, "quote"),
+      rating: text(form, "rating"),
+      photoAssetId: text(form, "photoAssetId"),
+      consent: checkbox(form, "consent"),
       published: checkbox(form, "published"),
-      sortOrder: text(form, "sortOrder"),
     });
-    const packageId = await savePackage(await actor(), id, input);
-    publishChanges("/admin/cms/packages");
-    return { message: "Package saved.", redirectTo: id ? undefined : `/admin/cms/packages/${packageId}` };
+    const savedId = await saveTestimonial(await actor(), id, input);
+    publishChanges("/admin/cms/testimonials");
+    return {
+      message: "Testimonial saved.",
+      redirectTo: id ? undefined : `/admin/cms/testimonials/${savedId}`,
+    };
   });
 }
 
-export async function deletePackageAction(id: string, _prev: ActionState): Promise<ActionState> {
+export async function deleteTestimonialAction(
+  id: string,
+  _prev: ActionState,
+): Promise<ActionState> {
+  return leaveDeletedPage(
+    await runAction(async () => {
+      await deleteTestimonial(await actor(), id);
+      publishChanges("/admin/cms/testimonials");
+      return {
+        message: "Testimonial deleted.",
+        redirectTo: "/admin/cms/testimonials",
+      };
+    }),
+  );
+}
+
+export async function saveBlogPostAction(
+  id: string | null,
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
   return runAction(async () => {
-    await deletePackage(await actor(), id);
-    publishChanges("/admin/cms/packages");
-    return { message: "Package deleted.", redirectTo: "/admin/cms/packages" };
+    const input = blogPostSchema.parse({
+      title: loc(form, "title"),
+      slug: text(form, "slug"),
+      summary: loc(form, "summary"),
+      content: loc(form, "content"),
+      coverAssetId: text(form, "coverAssetId"),
+      categoryKey: text(form, "categoryKey"),
+      tags: text(form, "tags"),
+      author: text(form, "author"),
+      seoTitle: loc(form, "seo.title"),
+      seoDescription: loc(form, "seo.description"),
+      published: checkbox(form, "published"),
+    });
+    const postId = await saveBlogPost(await actor(), id, input);
+    publishChanges("/admin/cms/blog");
+    return {
+      message: input.published
+        ? "Post saved. It is live on the website."
+        : "Post saved as a draft (not on the website).",
+      redirectTo: id ? undefined : `/admin/cms/blog/${postId}`,
+    };
   });
 }
 
-// ─── Gallery and dates ──────────────────────────────────────────────────────
+export async function deleteBlogPostAction(
+  id: string,
+  _prev: ActionState,
+): Promise<ActionState> {
+  return leaveDeletedPage(
+    await runAction(async () => {
+      await deleteBlogPost(await actor(), id);
+      publishChanges("/admin/cms/blog");
+      return { message: "Post deleted.", redirectTo: "/admin/cms/blog" };
+    }),
+  );
+}
 
-export async function addGalleryItemsAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+// ─── Gallery ────────────────────────────────────────────────────────────────
+
+export async function addGalleryPhotosAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
   return runAction(async () => {
-    await addGalleryItems(await actor(), text(form, "categoryId") ?? "", form.getAll("assetIds").map(String));
+    const assetIds = form.getAll("assetIds").map(String);
+    await addGalleryPhotos(
+      await actor(),
+      addGalleryPhotosSchema.parse({
+        categoryId: text(form, "categoryId") ?? "",
+        newCategory: text(form, "newCategory") ?? "",
+        photos: assetIds.map((assetId) => ({
+          assetId,
+          title: text(form, `title.${assetId}`) ?? "",
+        })),
+      }),
+    );
     publishChanges("/admin/cms/gallery");
-    return { message: "Photos added to the gallery." };
+    return {
+      message:
+        assetIds.length === 1
+          ? "Photo added to the gallery."
+          : `${assetIds.length} photos added to the gallery.`,
+    };
   });
 }
 
-export async function updateGalleryItemAction(id: string, _prev: ActionState, form: FormData): Promise<ActionState> {
+export async function updateGalleryItemAction(
+  id: string,
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
   return runAction(async () => {
-    await updateGalleryItem(await actor(), id, {
-      featured: checkbox(form, "featured"),
-      sortOrder: Math.max(0, Math.min(100_000, Number(text(form, "sortOrder")) || 0)),
-    });
+    await updateGalleryItem(
+      await actor(),
+      id,
+      galleryItemSchema.parse({
+        title: text(form, "title") ?? "",
+        categoryId: text(form, "categoryId") ?? "",
+      }),
+    );
     publishChanges("/admin/cms/gallery");
     return { message: "Saved." };
   });
 }
 
-export async function removeGalleryItemAction(id: string, _prev: ActionState): Promise<ActionState> {
+export async function removeGalleryItemAction(
+  id: string,
+): Promise<ActionState> {
   return runAction(async () => {
     await removeGalleryItem(await actor(), id);
     publishChanges("/admin/cms/gallery");
-    return { message: "Removed from the gallery." };
+    return { message: "Photo deleted." };
   });
 }
 
-export async function addDateAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+export async function deleteGalleryCategoryAction(
+  id: string,
+): Promise<ActionState> {
   return runAction(async () => {
-    await addAuspiciousDate(await actor(), dateSchema.parse({ date: text(form, "date"), label: loc(form, "label"), note: loc(form, "note") }));
-    publishChanges("/admin/cms/dates");
-    return { message: "Date added." };
-  });
-}
-
-export async function deleteDateAction(id: string, _prev: ActionState): Promise<ActionState> {
-  return runAction(async () => {
-    await deleteAuspiciousDate(await actor(), id);
-    publishChanges("/admin/cms/dates");
-    return { message: "Date removed." };
+    await deleteGalleryCategory(await actor(), id);
+    publishChanges("/admin/cms/gallery");
+    return { message: "Category deleted." };
   });
 }
 
 // ─── Media ──────────────────────────────────────────────────────────────────
 
-export async function getUploadSignatureAction(group: string) {
+export async function getUploadSignatureAction(
+  group: string,
+  kind: "video" | "other" = "other",
+) {
   const user = await actor();
-  return uploadSignature(user, group);
+  return uploadSignature(user, group, kind === "video" ? "video" : "other");
 }
 
-export async function registerUploadAction(payload: unknown): Promise<ActionState> {
+export async function registerUploadAction(
+  payload: unknown,
+): Promise<ActionState> {
   return runAction(async () => {
     await registerUploadedAsset(await actor(), registerSchema.parse(payload));
     revalidatePath("/admin/cms/media");
@@ -296,7 +483,39 @@ export async function registerUploadAction(payload: unknown): Promise<ActionStat
   });
 }
 
-export async function updateAssetAction(id: string, _prev: ActionState, form: FormData): Promise<ActionState> {
+/** Upload from inside a picker: records the file and hands it back so it can be chosen at once. */
+export async function uploadToLibraryAction(
+  payload: unknown,
+): Promise<{ ok: true; option: MediaOption } | { ok: false; message: string }> {
+  let option: MediaOption | null = null;
+  const state = await runAction(async () => {
+    const asset = await registerUploadedAsset(
+      await actor(),
+      registerSchema.parse(payload),
+    );
+    option = {
+      id: asset.id,
+      label: (asset.alt as { en?: string }).en || asset.publicId,
+      publicId: asset.publicId,
+      resourceType: asset.resourceType,
+      group: asset.group,
+    };
+    revalidatePath("/admin/cms/media");
+  });
+  if (!state.ok || !option)
+    return {
+      ok: false,
+      message:
+        state.fieldErrors?.file ?? state.message ?? "Upload could not be saved",
+    };
+  return { ok: true, option };
+}
+
+export async function updateAssetAction(
+  id: string,
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
   return runAction(async () => {
     const input = assetMetaSchema.parse({
       alt: loc(form, "alt"),
@@ -311,12 +530,59 @@ export async function updateAssetAction(id: string, _prev: ActionState, form: Fo
   });
 }
 
-export async function deleteAssetAction(id: string, _prev: ActionState): Promise<ActionState> {
+export async function replaceAssetAction(
+  id: string,
+  payload: unknown,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const { removedOld } = await replaceAssetFile(
+      await actor(),
+      id,
+      replaceSchema.parse(payload),
+    );
+    publishChanges("/admin/cms/media");
+    return {
+      message: removedOld
+        ? "File replaced. The old file was deleted from Cloudinary."
+        : "File replaced. Delete the old file in Cloudinary too if it's still there.",
+    };
+  });
+}
+
+/** Delete button inside a photo picker: removes the file from every page, the library and Cloudinary. */
+export async function deletePickerAssetAction(
+  id: string,
+): Promise<{ ok: boolean; message: string }> {
+  const state = await runAction(async () => {
+    const { removedFromCloudinary } = await deleteAsset(await actor(), id, {
+      everywhere: true,
+    });
+    publishChanges("/admin/cms/media");
+    return {
+      message: removedFromCloudinary
+        ? "Photo deleted, also from Cloudinary."
+        : "Photo removed from the website. Delete it in Cloudinary too if it is still there.",
+    };
+  });
+  return {
+    ok: state.ok,
+    message:
+      state.message ??
+      (state.ok ? "Deleted." : "The photo could not be deleted."),
+  };
+}
+
+export async function deleteAssetAction(
+  id: string,
+  _prev: ActionState,
+): Promise<ActionState> {
   return runAction(async () => {
     const { removedFromCloudinary } = await deleteAsset(await actor(), id);
     publishChanges("/admin/cms/media");
     return {
-      message: removedFromCloudinary ? "File deleted." : "Removed from the library. Delete it in Cloudinary too if it's no longer needed.",
+      message: removedFromCloudinary
+        ? "File deleted."
+        : "Removed from the library. Delete it in Cloudinary too if it's no longer needed.",
     };
   });
 }

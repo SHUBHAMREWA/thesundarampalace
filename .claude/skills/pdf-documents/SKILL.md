@@ -1,6 +1,6 @@
 ---
 name: pdf-documents
-description: Use when building or changing PDF/print documents in The Sundaram Palace CRM — quotations, confirmations, receipts, statements, GST invoices, credit notes, deposit settlements, function sheets, kitchen sheets — or the field picker, presets, templates and the rendering service.
+description: Use when building or changing PDF/print documents in The Sundaram Palace CRM — quotations, confirmations, receipts, statements, GST invoices, credit notes, deposit settlements, function sheets, food menus (no prices) — or the field picker, presets, templates and the rendering service.
 ---
 
 # PDF documents
@@ -21,7 +21,7 @@ description: Use when building or changing PDF/print documents in The Sundaram P
 - The preview uses the exact same template code as the PDF.
 
 ## Templates
-- Elegant Royal (Rose Mahal styling: ivory page, primary-deep header band, thin gold rule), Minimal Professional, Detailed Quotation, Compact Booking Summary, Kitchen Sheet (black on white, large text, menus per sub-event, plate counts, dietary notes, no prices).
+- Elegant Royal (Rose Mahal styling: ivory page, primary-deep header band, thin gold rule), Minimal Professional, Detailed Quotation, Compact Booking Summary, Plain, for the Food Menu given to the caterer (black on white, large text, menus per sub-event, plate counts, dietary notes, no prices).
 - Branding, logo, headings, footer, contact details and standard terms come from Settings.
 
 ## Print CSS essentials
@@ -42,5 +42,5 @@ tr, .keep-together { break-inside: avoid; }
 - A 5-day wedding with 6 sub-events and 40 line items: no clipped rows, headers repeat, no blank last page.
 - Hindi names render correctly.
 - Unticking a field removes it from HTML, not just hides it (assert in tests by searching the rendered HTML/PDF text).
-- Kitchen sheet contains no prices.
+- The Food Menu (`menu`, for the customer and the partner caterer) contains no prices. There is no kitchen sheet any more.
 - Snapshot-test the HTML per template; visually inspect PDFs after template changes.

@@ -1,11 +1,14 @@
 "use client";
 
 import { Menu } from "lucide-react";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Link } from "@/i18n/navigation";
+
+import { MenuLanguageSwitch } from "./menu-language-switch";
+import { SiteNavLink } from "./site-nav-link";
 
 export function MobileSiteNav({
   items,
@@ -34,13 +37,14 @@ export function MobileSiteNav({
           <ul className="flex flex-col gap-1">
             {items.map((item) => (
               <li key={item.href}>
-                <Link
+                <SiteNavLink
                   href={item.href}
                   onClick={() => setOpen(false)}
                   className="block rounded-md px-3 py-3 text-base font-medium hover:bg-blush/60"
+                  activeClassName="bg-blush text-primary"
                 >
                   {item.label}
-                </Link>
+                </SiteNavLink>
               </li>
             ))}
           </ul>
@@ -49,6 +53,9 @@ export function MobileSiteNav({
               {planLabel}
             </Link>
           </Button>
+          <Suspense fallback={null}>
+            <MenuLanguageSwitch onSelect={() => setOpen(false)} />
+          </Suspense>
         </nav>
       </SheetContent>
     </Sheet>

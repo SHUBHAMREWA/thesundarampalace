@@ -1,44 +1,208 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { X } from "lucide-react";
+import { useActionState, useState } from "react";
 
-import { MediaMultiPicker, type MediaOption } from "@/components/cms/media-picker";
-import { ActionForm, ActionFeedback, SelectField, SubmitButton } from "@/components/forms/form-kit";
+import { DeleteButton } from "@/components/cms/delete-button";
+import { UploadButton, type MediaOption } from "@/components/cms/media-picker";
+import {
+  ActionForm,
+  ActionFeedback,
+  SelectField,
+  SubmitButton,
+  TextField,
+} from "@/components/forms/form-kit";
 import { Input } from "@/components/ui/input";
-import { addGalleryItemsAction, removeGalleryItemAction, updateGalleryItemAction } from "@/server/actions/cms";
+import { cloudinaryImageUrl } from "@/lib/media/cloudinary";
+import {
+  addGalleryPhotosAction,
+  deleteGalleryCategoryAction,
+  removeGalleryItemAction,
+  updateGalleryItemAction,
+} from "@/server/actions/cms";
 import { idleState } from "@/server/actions/helpers-shared";
 
-export function AddToGalleryForm({ categories, media }: { categories: { value: string; label: string }[]; media: MediaOption[] }) {
-  const [state, action] = useActionState(addGalleryItemsAction, idleState);
-  const formRef = useRef<HTMLFormElement>(null);
+type Option = { value: string; label: string };
+
+/** Upload photos, give each a title, pick (or name) their category, then add them. */
+export function AddToGalleryForm({
+  categories,
+  uploads,
+}: {
+  categories: Option[];
+  uploads: boolean;
+}) {
+  const [state, action] = useActionState(addGalleryPhotosAction, idleState);
+  const [category, setCategory] = useState(categories[0]?.value ?? "new");
+  const [photos, setPhotos] = useState<MediaOption[]>([]);
+  const [shownAt, setShownAt] = useState(state.at);
+  // A successful add clears the list for the next batch.
+  if (state.at !== shownAt) {
+    setShownAt(state.at);
+    if (state.ok) setPhotos([]);
+  }
   return (
-    <ActionForm ref={formRef} action={action} className="space-y-4" key={state.at}>
+    <ActionForm action={action} className="space-y-5">
       <ActionFeedback state={state} />
-      <SelectField name="categoryId" label="Category" options={categories} className="max-w-xs" />
-      <MediaMultiPicker name="assetIds" label="Photos to add" options={media} />
-      {state.fieldErrors?.assetIds ? <p className="text-sm text-danger">{state.fieldErrors.assetIds}</p> : null}
-      <SubmitButton>Add to gallery</SubmitButton>
+      <div className="flex flex-wrap items-start gap-4">
+        <SelectField
+          name="categoryId"
+          label="Category"
+          options={[
+            ...categories,
+            { value: "new", label: "Other — new category…" },
+          ]}
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="w-full max-w-xs"
+        />
+        {category === "new" ? (
+          <TextField
+            name="newCategory"
+            label="New category name"
+            placeholder="e.g. Mehndi"
+            maxLength={40}
+            className="w-full max-w-xs"
+          />
+        ) : null}
+      </div>
+
+      <UploadButton
+        upload={{
+          enabled: uploads,
+          group: "gallery",
+          kind: "image",
+          alt: "Celebration at The Sundaram Palace",
+        }}
+        multiple
+        onAdded={(added) => setPhotos((p) => [...p, ...added])}
+      />
+
+      {photos.length ? (
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {photos.map((photo) => (
+            <li
+              key={photo.id}
+              className="relative rounded-md border border-border p-2"
+            >
+              <input type="hidden" name="assetIds" value={photo.id} />
+              {/* eslint-disable-next-line @next/next/no-img-element -- admin thumbnail */}
+              <img
+                src={cloudinaryImageUrl(photo.publicId, 400)}
+                alt=""
+                className="aspect-[4/3] w-full rounded object-cover"
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  setPhotos((p) => p.filter((o) => o.id !== photo.id))
+                }
+                aria-label="Don't add this photo"
+                className="absolute top-3 right-3 rounded-full bg-surface/90 p-1 text-text-muted hover:text-danger"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </button>
+              <Input
+                name={`title.${photo.id}`}
+                placeholder="Title (shown on hover)"
+                aria-label="Title"
+                maxLength={120}
+                className="mt-2 h-9"
+              />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-text-muted">
+          Upload one or many photos, write a title under each, then press “Add
+          to gallery”.
+        </p>
+      )}
+      {state.fieldErrors?.photos ? (
+        <p className="text-sm text-danger">{state.fieldErrors.photos}</p>
+      ) : null}
+      <SubmitButton disabled={!photos.length}>Add to gallery</SubmitButton>
     </ActionForm>
   );
 }
 
-export function GalleryItemControls({ id, featured, sortOrder }: { id: string; featured: boolean; sortOrder: number }) {
-  const [state, action] = useActionState(updateGalleryItemAction.bind(null, id), idleState);
-  const [removeState, removeAction] = useActionState(removeGalleryItemAction.bind(null, id), idleState);
+/** One gallery photo: its title and category, with delete. */
+export function GalleryPhoto({
+  id,
+  publicId,
+  title,
+  categoryId,
+  categories,
+}: {
+  id: string;
+  publicId: string;
+  title: string;
+  categoryId: string;
+  categories: Option[];
+}) {
+  const [state, action] = useActionState(
+    updateGalleryItemAction.bind(null, id),
+    idleState,
+  );
   return (
-    <div className="mt-2 space-y-2">
-      <ActionForm action={action} className="flex items-center gap-2 text-sm">
-        <label className="flex items-center gap-1">
-          <input type="checkbox" name="featured" defaultChecked={featured} className="accent-primary" /> Featured
-        </label>
-        <Input name="sortOrder" type="number" min={0} defaultValue={sortOrder} aria-label="Sort order" className="h-8 w-16 bg-surface" />
-        <SubmitButton size="sm" variant="outline">Save</SubmitButton>
+    <li className="rounded-md border border-border p-2">
+      {/* eslint-disable-next-line @next/next/no-img-element -- admin thumbnail */}
+      <img
+        src={cloudinaryImageUrl(publicId, 400)}
+        alt={title}
+        className="aspect-[4/3] w-full rounded object-cover"
+      />
+      <ActionForm action={action} className="mt-2 space-y-2">
+        <Input
+          name="title"
+          defaultValue={title}
+          placeholder="Title (shown on hover)"
+          aria-label="Title"
+          maxLength={120}
+          className="h-9"
+        />
+        <select
+          name="categoryId"
+          defaultValue={categoryId}
+          aria-label="Category"
+          className="h-9 w-full rounded-md border border-input bg-surface px-2 text-sm"
+        >
+          {categories.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        <div className="flex items-center justify-between gap-2">
+          <SubmitButton size="sm" variant="outline">
+            Save
+          </SubmitButton>
+          <DeleteButton
+            action={removeGalleryItemAction.bind(null, id)}
+            title="Delete this photo?"
+            description="It is removed from the gallery and, when no other page uses it, deleted from Cloudinary too."
+          />
+        </div>
+        <ActionFeedback state={state} />
       </ActionForm>
-      <ActionForm action={removeAction}>
-        <SubmitButton size="sm" variant="ghost" className="text-danger">Remove</SubmitButton>
-      </ActionForm>
-      <ActionFeedback state={state} />
-      <ActionFeedback state={removeState} />
-    </div>
+    </li>
+  );
+}
+
+/** Delete button for a category with no photos. */
+export function DeleteCategoryButton({
+  id,
+  name,
+}: {
+  id: string;
+  name: string;
+}) {
+  return (
+    <DeleteButton
+      action={deleteGalleryCategoryAction.bind(null, id)}
+      title={`Delete the “${name}” category?`}
+      description="It has no photos, so nothing on the website changes."
+      label="Delete category"
+    />
   );
 }

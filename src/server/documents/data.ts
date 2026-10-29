@@ -6,13 +6,13 @@ import type { InvoiceLine, QuotationLine } from "@/generated/prisma/client";
 import { isFirm } from "@/lib/booking/rules";
 import { db } from "@/lib/db";
 import { t } from "@/lib/i18n/localized";
-import { allocateToInstalments, amountInWordsINR, bookingBalance, depositTotals, formatINR, money, sumMoney } from "@/lib/money";
+import { allocateToInstalments, amountInWordsINR, bookingBalance, formatINR, money, sumMoney } from "@/lib/money";
 import { DOCUMENT_TYPES, resolveFields, type DocumentTypeKey, type FieldKey, type TemplateKey } from "@/lib/pdf/fields";
 import type { DocLine, DocumentData, DocTotals } from "@/lib/pdf/types";
 import { formatPhoneForDisplay } from "@/lib/contact/links";
 import { dateKey, formatDateKey, formatIST, todayIST } from "@/lib/time";
 import { gstStateLabel } from "@/lib/validation/gst";
-import { assertPermission, can, ForbiddenError, type Actor } from "@/server/policies/authorize";
+import { assertPermission, can, type Actor } from "@/server/policies/authorize";
 import { bookingVisibility, type MenuSnapshot } from "@/server/services/bookings";
 import { parseSlabs } from "@/server/services/catalog";
 import { RuleError } from "@/server/services/errors";
@@ -40,22 +40,13 @@ const methodLabel = (m: string | null) => PAYMENT_METHODS.find((p) => p.value ==
 
 /**
  * Who may produce a document for a booking: the type's PDF permission plus
- * normal booking visibility. Kitchen staff (no booking access) may produce
- * kitchen sheets for confirmed bookings with a function today or later.
+ * normal booking visibility.
  */
 export async function assertDocumentAccess(actor: Actor, bookingId: string, type: DocumentTypeKey) {
   assertPermission(actor, DOCUMENT_TYPES[type].permission);
   if (can(actor, "bookings.read")) {
     const visible = await db.booking.findFirst({ where: { AND: [{ id: bookingId }, bookingVisibility(actor)] }, select: { id: true } });
     if (visible) return;
-  }
-  if (type === "kitchen_sheet" && can(actor, "kitchen.read")) {
-    const upcoming = await db.booking.findFirst({
-      where: { id: bookingId, deletedAt: null, status: { in: ["CONFIRMED", "IN_PROGRESS"] }, subEvents: { some: { date: { gte: new Date(`${todayIST()}T00:00:00Z`) } } } },
-      select: { id: true },
-    });
-    if (upcoming) return;
-    throw new ForbiddenError("kitchen.read");
   }
   throw new NotFoundError("Booking");
 }
@@ -130,12 +121,10 @@ export async function buildDocumentData(actor: Actor, request: DocumentRequest):
     where: { id: request.bookingId },
     include: {
       customer: true,
-      package: { select: { name: true } },
       subEvents: {
         orderBy: [{ sortOrder: "asc" }, { startsAt: "asc" }],
         include: {
-          hall: { select: { id: true, name: true, areaSqFt: true, capacities: true } },
-          slotDefinition: { select: { name: true } },
+          hall: { select: { id: true, name: true } },
           menuSelection: true,
           reservation: { select: { state: true } },
         },
@@ -158,7 +147,7 @@ export async function buildDocumentData(actor: Actor, request: DocumentRequest):
     business: {
       displayName: business.displayName,
       legalName: business.legalName,
-      gstin: business.gstin,
+      gstin: null,
       address: business.address,
       phone: business.phone ? formatPhoneForDisplay(business.phone) : null,
       email: business.email,
@@ -175,7 +164,6 @@ export async function buildDocumentData(actor: Actor, request: DocumentRequest):
   if (on("customer.mobile")) customerParts.mobile = formatPhoneForDisplay(booking.customer.mobile);
   if (on("customer.email")) customerParts.email = booking.customer.email;
   if (on("customer.address")) customerParts.address = [booking.customer.address, booking.customer.locality, booking.customer.city].filter(Boolean).join(", ") || null;
-  if (on("customer.gstin")) customerParts.gstin = booking.customer.gstin;
   if (Object.keys(customerParts).length) data.customer = customerParts;
 
   if (on("event.main")) {
@@ -198,7 +186,6 @@ export async function buildDocumentData(actor: Actor, request: DocumentRequest):
         date: formatDateKey(dateKey(s.date), "EEE d MMM yyyy"),
         time: `${formatIST(s.startsAt, "h:mm a")} – ${formatIST(s.endsAt, "h:mm a")}`,
         hall: t(s.hall.name, "en"),
-        slot: s.slotDefinition?.name ?? null,
         guests: s.expectedGuests,
         plates: s.menuSelection?.guaranteedPlates ?? null,
         menuName: snap ? `${snap.packageName} — ${snap.menuName}` : null,
@@ -210,13 +197,8 @@ export async function buildDocumentData(actor: Actor, request: DocumentRequest):
   }
   if (on("event.halls")) {
     const halls = new Map(activeFunctions.map((s) => [s.hall.id, s.hall]));
-    data.halls = [...halls.values()].map((h) => ({
-      name: t(h.name, "en"),
-      details: [
-        h.areaSqFt ? `${h.areaSqFt.toLocaleString("en-IN")} sq ft` : null,
-        ...h.capacities.filter((c) => c.maxGuests).map((c) => `${c.layout.toLowerCase()} up to ${c.maxGuests}`),
-      ].filter((v): v is string => !!v),
-    }));
+    // Venues no longer store area or capacity (removed 28 Oct 2026), so only names are listed.
+    data.halls = [...halls.values()].map((h) => ({ name: t(h.name, "en"), details: [] }));
   }
   const parties = [
     on("party.bride") ? booking.parties.find((p) => p.role === "BRIDE") : undefined,
@@ -231,7 +213,6 @@ export async function buildDocumentData(actor: Actor, request: DocumentRequest):
       altPhone: p.altPhone ? formatPhoneForDisplay(p.altPhone) : null,
     }));
   }
-  if (on("package")) data.packageName = booking.package ? t(booking.package.name, "en") : null;
 
   let sourceId: string | null = null;
 
@@ -239,24 +220,24 @@ export async function buildDocumentData(actor: Actor, request: DocumentRequest):
   if (fields.some((f) => f.startsWith("pricing."))) {
     const versionId =
       request.type === "quotation"
-        ? (request.sourceId ?? booking.acceptedQuotationId ?? (await db.quotationVersion.findFirst({ where: { bookingId: booking.id }, orderBy: { versionNumber: "desc" }, select: { id: true } }))?.id)
+        ? (request.sourceId ?? (await db.quotationVersion.findFirst({ where: { bookingId: booking.id }, orderBy: { versionNumber: "desc" }, select: { id: true } }))?.id)
         : booking.acceptedQuotationId;
     const version = versionId ? await db.quotationVersion.findFirst({ where: { id: versionId, bookingId: booking.id }, include: { lines: { orderBy: { sortOrder: "asc" } } } }) : null;
-    if (request.type === "quotation" && !version) throw new RuleError("Create a quotation version first.");
+    if (request.type === "quotation" && !version) throw new RuleError("Start the quotation first.");
     if (version) {
       if (request.type === "quotation") {
         sourceId = version.id;
-        data.reference = `${booking.reference}/Q${version.versionNumber}`;
-        data.draft = version.status === "DRAFT";
+        // One quotation per booking, edited in place: no version number or DRAFT mark.
+        data.reference = `${booking.reference}/Q`;
       }
-      const showDiscount = on("pricing.discount");
+      // The discount column only appears when something was actually discounted.
+      const showDiscount = version.lines.some((l) => !money(l.discount).plus(money(l.allocatedDiscount)).isZero());
       data.quotation = {
         version: version.versionNumber,
         status: version.status,
         validUntil: version.validUntil ? formatDateKey(dateKey(version.validUntil)) : null,
-        pricesIncludeTax: version.pricesIncludeTax,
         supplyType: version.supplyType,
-        placeOfSupply: gstStateLabel(version.placeOfSupplyStateCode),
+        gst: money(version.taxTotal).isZero() ? null : { pricesIncludeTax: version.pricesIncludeTax, placeOfSupply: gstStateLabel(version.placeOfSupplyStateCode) },
         lines: on("pricing.lines")
           ? version.lines.map((l) => {
               const d = money(l.discount).plus(money(l.allocatedDiscount));
@@ -265,26 +246,26 @@ export async function buildDocumentData(actor: Actor, request: DocumentRequest):
           : undefined,
         totals: totals(showDiscount ? version : { ...version, discountTotal: "0" }),
         showDiscount,
-        showTax: on("pricing.tax"),
       };
+    } else if (on("pricing.total") && booking.bookingAmount) {
+      data.bookingAmount = { amount: formatINR(booking.bookingAmount), inWords: amountInWordsINR(booking.bookingAmount) };
     }
   }
 
-  // Payments and deposit.
-  if (fields.some((f) => f.startsWith("payments.")) || on("deposit") || request.type === "payment_receipt") {
-    const [ledger, deposits, instalments, charges, accepted] = await Promise.all([
+  // Payments.
+  if (fields.some((f) => f.startsWith("payments.")) || request.type === "payment_receipt") {
+    const [ledger, instalments, charges, accepted] = await Promise.all([
       db.ledgerEntry.findMany({ where: { bookingId: booking.id }, orderBy: [{ occurredOn: "asc" }, { createdAt: "asc" }] }),
-      db.depositEntry.findMany({ where: { bookingId: booking.id }, orderBy: [{ occurredOn: "asc" }, { createdAt: "asc" }] }),
       db.paymentInstalment.findMany({ where: { bookingId: booking.id }, orderBy: { dueOn: "asc" } }),
       db.postEventCharge.findMany({ where: { bookingId: booking.id }, select: { lineTotal: true } }),
       booking.acceptedQuotationId ? db.quotationVersion.findUnique({ where: { id: booking.acceptedQuotationId }, select: { grandTotal: true } }) : null,
     ]);
     const cancellation = booking.cancellation as { agreedRefund?: string } | null;
     const balance = bookingBalance({
-      acceptedTotal: accepted?.grandTotal ?? "0",
+      acceptedTotal: accepted?.grandTotal ?? booking.bookingAmount ?? "0",
       postEventTotal: sumMoney(charges.map((c) => c.lineTotal)),
       ledger,
-      deposits,
+      deposits: [],
       cancelled: booking.status === "CANCELLED",
       agreedRefund: cancellation?.agreedRefund ?? null,
     });
@@ -311,16 +292,6 @@ export async function buildDocumentData(actor: Actor, request: DocumentRequest):
       }));
     }
     if (Object.keys(payments).length) data.payments = payments;
-    if (on("deposit")) {
-      const d = depositTotals(deposits);
-      data.deposit = {
-        entries: deposits.map((e) => ({ date: formatDateKey(dateKey(e.occurredOn)), type: { RECEIVED: "Received", DEDUCTION: "Deduction", REFUNDED: "Refunded" }[e.type], amount: formatINR(e.amount), reason: e.reason })),
-        received: formatINR(d.received),
-        deducted: formatINR(d.deducted),
-        refunded: formatINR(d.refunded),
-        held: formatINR(d.held),
-      };
-    }
     if (request.type === "payment_receipt") {
       const entry = request.sourceId ? ledger.find((e) => e.id === request.sourceId && e.type === "PAYMENT") : [...ledger].reverse().find((e) => e.type === "PAYMENT");
       if (!entry || !entry.receiptNumber) throw new RuleError("Choose a recorded payment for the receipt.");
@@ -344,7 +315,7 @@ export async function buildDocumentData(actor: Actor, request: DocumentRequest):
       orderBy: { createdAt: "desc" },
       include: { lines: { orderBy: { sortOrder: "asc" } } },
     });
-    if (!invoice) throw new RuleError("No tax invoice has been issued for this booking yet.");
+    if (!invoice) throw new RuleError("No invoice has been issued for this booking yet.");
     sourceId = invoice.id;
     data.reference = invoice.number;
     const supplier = invoice.supplier as unknown as SupplierSnapshot;
@@ -353,16 +324,17 @@ export async function buildDocumentData(actor: Actor, request: DocumentRequest):
     data.invoice = {
       number: invoice.number,
       date: formatDateKey(dateKey(invoice.issuedOn), "d MMM yyyy"),
-      supplier: { legalName: supplier.legalName, gstin: supplier.gstin, address: supplier.address, state: gstStateLabel(supplier.stateCode), phone: supplier.phone ? formatPhoneForDisplay(supplier.phone) : null, email: supplier.email },
-      recipient: { name: recipient.name, company: recipient.companyName, gstin: recipient.gstin, address: recipient.address, state: gstStateLabel(recipient.stateCode) },
-      placeOfSupply: gstStateLabel(invoice.placeOfSupplyStateCode),
+      supplier: { legalName: supplier.legalName, gstin: supplier.gstin ?? null, address: supplier.address, state: supplier.stateCode ? gstStateLabel(supplier.stateCode) : null, phone: supplier.phone ? formatPhoneForDisplay(supplier.phone) : null, email: supplier.email },
+      recipient: { name: recipient.name, company: recipient.companyName, gstin: recipient.gstin ?? null, address: recipient.address, state: recipient.stateCode ? gstStateLabel(recipient.stateCode) : null },
       supplyType: invoice.supplyType,
-      pricesIncludeTax: invoice.pricesIncludeTax,
+      gst: money(invoice.taxTotal).isZero() ? null : { placeOfSupply: gstStateLabel(invoice.placeOfSupplyStateCode) },
       lines: invoice.lines.map((l) => docLine(l, money(l.discount).isZero() ? null : formatINR(l.discount))),
       totals: totals({ ...invoice, subtotal: undefined, discountTotal: undefined }),
       notes: invoice.notes,
       status: invoice.status,
     };
+    // Invoices issued before GST was removed keep their legal title.
+    if (data.invoice.gst) data.title = "Tax Invoice";
     if (on("customer.mobile")) data.customer = { mobile: formatPhoneForDisplay(booking.customer.mobile) };
   }
 
@@ -384,9 +356,10 @@ export async function buildDocumentData(actor: Actor, request: DocumentRequest):
       invoiceNumber: note.invoice.number,
       invoiceDate: formatDateKey(dateKey(note.invoice.issuedOn), "d MMM yyyy"),
       reason: note.reason,
-      supplier: { legalName: supplier.legalName, gstin: supplier.gstin, address: supplier.address, state: gstStateLabel(supplier.stateCode), phone: null, email: null },
-      recipient: { name: recipient.name, company: recipient.companyName, gstin: recipient.gstin, address: recipient.address, state: gstStateLabel(recipient.stateCode) },
+      supplier: { legalName: supplier.legalName, gstin: supplier.gstin ?? null, address: supplier.address, state: supplier.stateCode ? gstStateLabel(supplier.stateCode) : null, phone: null, email: null },
+      recipient: { name: recipient.name, company: recipient.companyName, gstin: recipient.gstin ?? null, address: recipient.address, state: recipient.stateCode ? gstStateLabel(recipient.stateCode) : null },
       supplyType: note.supplyType,
+      gst: !money(note.taxTotal).isZero(),
       lines: note.lines.map((l) => ({
         description: l.description,
         functionLabel: null,
@@ -409,9 +382,8 @@ export async function buildDocumentData(actor: Actor, request: DocumentRequest):
   const suffix: Partial<Record<DocumentTypeKey, string>> = {
     booking_confirmation: "BC",
     payment_statement: "PS",
-    deposit_settlement: "DS",
     function_sheet: "FS",
-    kitchen_sheet: "KS",
+    menu: "MENU",
     booking_summary: "SUM",
   };
   if (suffix[request.type]) data.reference = `${booking.reference}/${suffix[request.type]}`;

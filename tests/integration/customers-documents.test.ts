@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
 import { ForbiddenError } from "@/server/policies/authorize";
-import { addSubEvent, changeBookingStatus, createBooking, createBookingSchema, subEventSchema } from "@/server/services/bookings";
+import { addSubEvent, changeBookingStatus, createBooking, createBookingSchema, menuSelectionSchema, setMenuSelection, subEventSchema } from "@/server/services/bookings";
 import {
   createCustomer,
   customerSchema,
@@ -84,10 +84,17 @@ describeDb("customers, private documents and generated documents (Phase 3)", () 
     expect(views[0].ip).toBe("203.0.113.5");
   });
 
-  it("documents contain only ticked fields; kitchen sheets have no prices", async () => {
+  it("documents contain only ticked fields; the food menu has no prices", async () => {
     const customer = await createCustomer(manager(), customerSchema.parse({ fullName: "Test Customer <b>Html</b>", mobile: "9000012388", address: "Secret lane", stateCode: "09" }));
     const booking = await createBooking(sales(), createBookingSchema.parse({ customerId: customer.id, mainEventName: "Sample wedding", mainEventTypeKey: "wedding", initialStatus: "TENTATIVE" }));
-    await addSubEvent(sales(), booking.id, subEventSchema.parse({ name: "Wedding", eventTypeKey: "wedding", date: futureDate(15), hallId: fx.hallA.id, slotDefinitionId: fx.evening.id, specialInstructions: "Mandap facing east" }));
+    const { subEvent: wedding } = await addSubEvent(sales(), booking.id, subEventSchema.parse({ name: "Wedding", eventTypeKey: "wedding", date: futureDate(15), hallId: fx.hallA.id, ...fx.evening, specialInstructions: "Mandap facing east" }));
+    const starters = (await db.menuItem.findMany({ where: { menuId: fx.menu.id, course: "starters" }, orderBy: { sortOrder: "asc" } })).map((i) => i.id);
+    await setMenuSelection(sales(), wedding.id, menuSelectionSchema.parse({
+      menuPackageId: fx.menuPackage.id,
+      itemIds: starters.slice(0, 2),
+      extraDishes: [{ course: "desserts", name: "Sample kulfi <i>" }, { course: "other", name: "Sample paan counter" }],
+      guaranteedPlates: "300",
+    }));
     const draft = await createDraft(sales(), booking.id, null);
     await addLine(sales(), draft.id, lineSchema.parse({ kind: "SERVICE", description: "Sample hall rental", unit: "event", quantity: "1", unitPrice: "125000", discount: "0", taxCategoryId: fx.taxHall.id }));
 
@@ -107,17 +114,23 @@ describeDb("customers, private documents and generated documents (Phase 3)", () 
     await markSent(sales(), draft.id);
     await acceptVersion(manager(), draft.id);
     await changeBookingStatus(manager(), booking.id, { to: "CONFIRMED", reason: null, overrideReason: null });
-    const kitchen = actorFor(fx.users.kitchen, "kitchen");
-    const sheet = await previewDocumentHtml(kitchen, { bookingId: booking.id, type: "kitchen_sheet", template: "kitchen", fields: ["event.main", "event.functions", "notes.special", "pricing.total" as string], sourceId: null, customNote: null });
-    expect(sheet).toContain("Mandap facing east");
-    expect(sheet).not.toContain("₹");
-    await expect(previewDocumentHtml(kitchen, { ...base, fields: ["pricing.total"] })).rejects.toBeInstanceOf(ForbiddenError);
+    // The menu goes to the customer and the caterer: ticked price fields are ignored.
+    const menu = await previewDocumentHtml(sales(), { bookingId: booking.id, type: "menu", template: "plain", fields: ["event.main", "event.functions", "event.guests", "menu.items", "notes.special", "pricing.total" as string], sourceId: null, customNote: null });
+    expect(menu).toContain("Mandap facing east");
+    expect(menu).toContain("300 plates guaranteed");
+    expect(menu).toContain("Sample kulfi &lt;i&gt;");
+    expect(menu).toContain("Sample paan counter");
+    expect(menu).not.toContain("₹");
+    expect(menu).not.toContain("850");
+    // Event operations may print the menu but not a quotation.
+    const operations = actorFor(fx.users.operations, "operations");
+    await expect(previewDocumentHtml(operations, { ...base, fields: ["pricing.total"] })).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it("generates a real PDF, records it, and serves it only to permitted users", async () => {
     const customer = await createCustomer(manager(), customerSchema.parse({ fullName: "Test Customer हिन्दी नाम", mobile: "9000012366" }));
     const booking = await createBooking(sales(), createBookingSchema.parse({ customerId: customer.id, mainEventName: "Sample wedding", mainEventTypeKey: "wedding", initialStatus: "TENTATIVE" }));
-    await addSubEvent(sales(), booking.id, subEventSchema.parse({ name: "Wedding", eventTypeKey: "wedding", date: futureDate(20), hallId: fx.hallB.id, slotDefinitionId: fx.evening.id }));
+    await addSubEvent(sales(), booking.id, subEventSchema.parse({ name: "Wedding", eventTypeKey: "wedding", date: futureDate(20), hallId: fx.hallB.id, ...fx.evening }));
     const doc = await generateDocument(manager(), { bookingId: booking.id, type: "function_sheet", template: "compact", fields: ["customer.name", "event.main", "event.functions"], sourceId: null, customNote: null });
     expect(doc.format).toBe("pdf");
     expect(doc.reference).toBe(`${booking.reference}/FS`);

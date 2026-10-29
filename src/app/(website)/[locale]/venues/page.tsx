@@ -3,9 +3,9 @@ import { currentLocale } from "@/i18n/current";
 
 import { ContentPlaceholder } from "@/components/website/content-placeholder";
 import { CtaBand } from "@/components/website/cta-band";
-import { HallCard } from "@/components/website/hall-card";
 import { PageHero } from "@/components/website/page-hero";
 import { Section } from "@/components/website/section";
+import { ShowcaseBlock } from "@/components/website/showcase-block";
 import { RichText } from "@/lib/content/rich-text";
 import { t } from "@/lib/i18n/localized";
 import { metadataForPage } from "@/server/cms/page-metadata";
@@ -13,6 +13,7 @@ import { getPage, listHalls } from "@/server/cms/queries";
 
 export const generateMetadata = () => metadataForPage("STANDARD", "venues", "/venues");
 
+/** Every published venue, one below the other: title, description, then its photos. */
 export default async function VenuesPage() {
   const locale = await currentLocale();
   const [page, halls, tr] = await Promise.all([getPage("STANDARD", "venues"), listHalls(), getTranslations("venues")]);
@@ -33,9 +34,17 @@ export default async function VenuesPage() {
           </div>
         ) : null}
         {halls.length ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {halls.map((hall) => (
-              <HallCard key={hall.slug} hall={hall} locale={locale} />
+          <div className="space-y-20 md:space-y-28">
+            {halls.map((hall, index) => (
+              <ShowcaseBlock
+                key={hall.slug}
+                id={hall.slug}
+                title={t(hall.name, locale)}
+                description={t(hall.description, locale)}
+                images={hall.images}
+                locale={locale}
+                index={index}
+              />
             ))}
           </div>
         ) : (

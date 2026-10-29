@@ -83,7 +83,8 @@ export function bookingBalance(input: BookingBalanceInput) {
   if (input.cancelled) {
     // After cancellation nothing more is billed; what's left is the refund still to pay.
     const agreedRefund = roundMoney(input.agreedRefund ?? 0);
-    const refundStillDue = Decimal.max(roundMoney(0), agreedRefund.minus(totals.refunds));
+    // Never more than is still held: a payment reversed as a mistake leaves nothing to refund.
+    const refundStillDue = Decimal.max(roundMoney(0), Decimal.min(agreedRefund.minus(totals.refunds), totals.netReceived));
     return {
       ...totals,
       billable,

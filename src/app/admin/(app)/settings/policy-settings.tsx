@@ -27,7 +27,7 @@ export function PolicySettings({ settings, policies }: { settings: All; policies
         <CardContent>
           <ActionPanel action={saveSettingsAction.bind(null, "bookingPolicy")} submitLabel="Save booking policy">
             <div className="grid gap-4 md:grid-cols-3">
-              <TextField name="holdDurationHours" label="Tentative hold lasts (hours)" type="number" min={1} defaultValue={b.holdDurationHours} />
+              <TextField name="holdDurationHours" label="Enquiry hold lasts (hours)" type="number" min={1} defaultValue={b.holdDurationHours} />
               <TextField name="holdReminderHoursBefore" label="Remind before expiry (hours)" type="number" min={0} defaultValue={b.holdReminderHoursBefore} />
               <TextField name="guestCountLockDays" label="Plates lock (days before function)" type="number" min={0} defaultValue={b.guestCountLockDays} />
               <TextField name="advancePercent" label="Suggested advance (% of total)" inputMode="decimal" defaultValue={b.advancePercent ?? ""} />
@@ -41,20 +41,18 @@ export function PolicySettings({ settings, policies }: { settings: All; policies
       <Card>
         <CardHeader>
           <CardTitle>{SETTINGS_LABELS.tax}</CardTitle>
-          <p className="text-sm text-text-muted">Rates and SAC codes are set per tax category in Catalog and pricing. Confirm everything with the accountant.</p>
         </CardHeader>
         <CardContent>
-          <ActionPanel action={saveSettingsAction.bind(null, "tax")} submitLabel="Save tax settings">
-            <CheckboxField name="pricesIncludeTaxByDefault" label="New quotations: prices include GST" defaultChecked={tx.pricesIncludeTaxByDefault} />
+          <ActionPanel action={saveSettingsAction.bind(null, "tax")} submitLabel="Save invoice settings">
             <CheckboxField name="roundGrandTotal" label="Round totals to the nearest rupee" defaultChecked={tx.roundGrandTotal} />
-            <TextAreaField name="invoiceNotes" label="Printed under invoice totals" rows={2} defaultValue={tx.invoiceNotes ?? ""} hint="e.g. the reverse-charge statement your accountant requires." />
+            <TextAreaField name="invoiceNotes" label="Printed under invoice totals" rows={2} defaultValue={tx.invoiceNotes ?? ""} hint="e.g. a thank-you line or payment instructions." />
           </ActionPanel>
         </CardContent>
       </Card>
       <Card>
         <CardHeader>
           <CardTitle>{SETTINGS_LABELS.numbering}</CardTitle>
-          <p className="text-sm text-text-muted">Invoice and credit-note prefixes: 1–4 letters/digits (GST numbers are limited to 16 characters, e.g. SP/26-27/0001). A new prefix starts with the next financial year.</p>
+          <p className="text-sm text-text-muted">Invoice and credit-note prefixes: 1–4 letters/digits (e.g. SP/26-27/0001). A new prefix starts with the next financial year.</p>
         </CardHeader>
         <CardContent>
           <ActionPanel action={saveSettingsAction.bind(null, "numbering")} submitLabel="Save numbering">
@@ -63,7 +61,7 @@ export function PolicySettings({ settings, policies }: { settings: All; policies
               <TextField name="customerPrefix" label="Customers" defaultValue={n.customerPrefix} />
               <TextField name="bookingPrefix" label="Bookings" defaultValue={n.bookingPrefix} />
               <TextField name="receiptPrefix" label="Payment receipts" defaultValue={n.receiptPrefix} />
-              <TextField name="invoicePrefix" label="Tax invoices" defaultValue={n.invoicePrefix} />
+              <TextField name="invoicePrefix" label="Invoices" defaultValue={n.invoicePrefix} />
               <TextField name="creditNotePrefix" label="Credit notes" defaultValue={n.creditNotePrefix} />
             </div>
           </ActionPanel>

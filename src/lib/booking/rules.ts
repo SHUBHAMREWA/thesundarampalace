@@ -23,9 +23,10 @@ const TRANSITIONS: Record<BookingStatus, readonly BookingStatus[]> = {
   ENQUIRY_HOLD: ["TENTATIVE", "QUOTATION_SENT", "CONFIRMED", "CANCELLED"],
   TENTATIVE: ["ENQUIRY_HOLD", "QUOTATION_SENT", "CONFIRMED", "CANCELLED"],
   QUOTATION_SENT: ["TENTATIVE", "CONFIRMED", "CANCELLED"],
-  CONFIRMED: ["IN_PROGRESS", "COMPLETED", "CANCELLED"],
-  IN_PROGRESS: ["COMPLETED"],
-  COMPLETED: [],
+  // Moving back (to CONFIRMED or TENTATIVE) undoes a status set by mistake; it needs a reason.
+  CONFIRMED: ["TENTATIVE", "IN_PROGRESS", "COMPLETED", "CANCELLED"],
+  IN_PROGRESS: ["CONFIRMED", "TENTATIVE", "COMPLETED"],
+  COMPLETED: ["CONFIRMED", "TENTATIVE"],
   CANCELLED: [],
 };
 
@@ -37,7 +38,14 @@ export function nextStatuses(from: BookingStatus): readonly BookingStatus[] {
   return TRANSITIONS[from];
 }
 
-/** Confirmed-or-later bookings count as firm (calendar, revenue, kitchen). */
+const ORDER: Record<BookingStatus, number> = { ENQUIRY_HOLD: 0, TENTATIVE: 1, QUOTATION_SENT: 2, CONFIRMED: 3, IN_PROGRESS: 4, COMPLETED: 5, CANCELLED: 6 };
+
+/** A move from a firm status back to an earlier one (un-confirm, re-open). */
+export function isStepBack(from: BookingStatus, to: BookingStatus): boolean {
+  return isFirm(from) && to !== "CANCELLED" && ORDER[to] < ORDER[from];
+}
+
+/** Confirmed-or-later bookings count as firm (calendar, revenue, menus). */
 export function isFirm(status: BookingStatus): boolean {
   return status === "CONFIRMED" || status === "IN_PROGRESS" || status === "COMPLETED";
 }

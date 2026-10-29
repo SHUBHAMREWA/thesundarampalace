@@ -12,16 +12,23 @@ import { requireUser } from "@/server/auth/session";
 
 /**
  * CRM shell. The session check runs before anything streams, so signed-out
- * users get a real redirect and missing permissions a real 403 status.
+ * users get a real redirect. Pages render inside ./loading.tsx, so moving
+ * between CRM pages shows a skeleton at once; their own permission checks
+ * still run on the server before any data is shown.
  * (The admin root layout opts out of prerendering — see ../layout.tsx.)
  */
+// Entering the CRM (e.g. from sign-in) must wait for the session check, so
+// this shell opts out of instant-navigation validation. Moves between CRM
+// pages stay instant through ./loading.tsx.
+export const instant = false;
+
 export default async function CrmLayout({ children }: { children: ReactNode }) {
   const user = await requireUser();
-  const hrefs = visibleNav(user.permissions).map((item) => item.href);
+  const hrefs = visibleNav(user.permissions);
   const unread = await db.notification.count({ where: { userId: user.id, readAt: null } });
   return (
     <div className="flex min-h-dvh">
-      <aside className="hidden w-64 shrink-0 border-r border-border bg-surface px-4 py-6 lg:block">
+      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 overflow-y-auto overscroll-contain border-r border-border bg-surface px-4 py-6 lg:block">
         <p className="px-3 font-display text-xl font-semibold text-primary">Sundaram Palace</p>
         <span className="gold-rule mt-3 ml-3" aria-hidden="true" />
         <div className="mt-6">

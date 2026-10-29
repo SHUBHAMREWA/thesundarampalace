@@ -13,7 +13,6 @@ export const PERMISSIONS = {
   "users.manage": "Invite, deactivate and assign roles to staff",
   "roles.manage": "Change which permissions each role has",
   "audit.read": "Read the audit log",
-  "privacy.requests": "Handle data access, correction and deletion requests",
 
   "cms.edit": "Edit website content",
   "cms.publish": "Publish website content",
@@ -27,13 +26,15 @@ export const PERMISSIONS = {
   "customers.personal.read": "See date of birth, marital status and address",
   "customers.edit": "Create and update customers",
   "customers.merge": "Merge duplicate customers",
+  "customers.delete": "Delete customers (their bookings go too, if none has payments or is confirmed)",
 
-  "catalog.manage": "Manage slots, chargeable services, menu packages, pricing rules, tax categories and cancellation policies",
+  "catalog.manage": "Edit the food menu",
 
   "bookings.read": "See bookings (own and assigned events)",
   "bookings.read_all": "See every booking",
   "bookings.edit": "Create and update bookings before confirmation",
   "bookings.confirm": "Confirm and cancel bookings, and change confirmed bookings",
+  "bookings.delete": "Delete bookings that have no payments, invoices or deposits",
   "holds.place": "Place tentative date holds",
   "bookings.override_conflict": "Override a slot conflict (with reason)",
   "plates.change_after_lock": "Change guaranteed plates after the guest-count lock date",
@@ -45,7 +46,7 @@ export const PERMISSIONS = {
   "payments.create": "Record payments",
   "refunds.create": "Record refunds and adjustments",
   "deposits.manage": "Record security deposits, deductions and refunds",
-  "invoices.issue": "Issue GST tax invoices",
+  "invoices.issue": "Issue invoices",
   "credit_notes.issue": "Issue credit notes",
 
   "documents.sensitive.read": "View identity documents",
@@ -54,15 +55,21 @@ export const PERMISSIONS = {
   "pdf.quotation": "Generate quotation PDFs",
   "pdf.financial": "Generate receipts, statements, invoices and credit notes",
   "pdf.function_sheet": "Generate event function sheets",
-  "pdf.kitchen_sheet": "Generate kitchen sheets",
+  "pdf.menu": "Print food menus for customers and the caterer (no prices)",
   "documents.templates.manage": "Manage shared print presets and document wording",
 
   "reports.sales": "See sales reports",
   "reports.financial": "See financial reports and exports",
 
+  "vendors.read": "See vendors and their event assignments",
+  "vendors.manage": "Add vendors and assign them to events",
+  "expenses.manage": "Record and edit expenses",
+
+  "messages.read": "See WhatsApp message logs and replies",
+  "messages.send": "Send bulk WhatsApp messages (approved templates)",
+
   "tasks.own": "See and update own tasks",
   "tasks.manage": "Create, assign and manage all tasks",
-  "kitchen.read": "See kitchen sheets for upcoming events",
 } as const;
 
 export type PermissionKey = keyof typeof PERMISSIONS;
@@ -75,8 +82,7 @@ export type RoleKey =
   | "manager"
   | "sales"
   | "accounts"
-  | "operations"
-  | "kitchen";
+  | "operations";
 
 export type RoleDefinition = {
   key: RoleKey;
@@ -92,13 +98,13 @@ export const ROLES: readonly RoleDefinition[] = [
   {
     key: "super_admin",
     name: "Super Admin",
-    requires2fa: true,
+    requires2fa: false,
     permissions: ALL_PERMISSIONS,
   },
   {
     key: "admin",
     name: "Admin",
-    requires2fa: true,
+    requires2fa: false,
     permissions: except("settings.manage", "roles.manage"),
   },
   {
@@ -108,15 +114,17 @@ export const ROLES: readonly RoleDefinition[] = [
     permissions: [
       "dashboard.view",
       "leads.read", "leads.read_all", "leads.edit", "leads.assign",
-      "customers.read", "customers.personal.read", "customers.edit", "customers.merge",
-      "bookings.read", "bookings.read_all", "bookings.edit", "bookings.confirm", "holds.place",
+      "customers.read", "customers.personal.read", "customers.edit", "customers.merge", "customers.delete",
+      "bookings.read", "bookings.read_all", "bookings.edit", "bookings.confirm", "bookings.delete", "holds.place",
       "bookings.override_conflict", "plates.change_after_lock",
       "quotations.create", "quotations.accept",
       "payments.read",
       "documents.sensitive.read", "documents.sensitive.upload",
-      "pdf.quotation", "pdf.financial", "pdf.function_sheet", "pdf.kitchen_sheet",
+      "pdf.quotation", "pdf.financial", "pdf.function_sheet", "pdf.menu",
       "reports.sales", "reports.financial",
+      "messages.read", "messages.send",
       "tasks.own", "tasks.manage",
+      "vendors.read", "vendors.manage", "expenses.manage",
     ],
   },
   {
@@ -129,15 +137,16 @@ export const ROLES: readonly RoleDefinition[] = [
       "customers.read", "customers.edit",
       "bookings.read", "bookings.read_all", "bookings.edit", "holds.place",
       "quotations.create",
-      "pdf.quotation",
+      "pdf.quotation", "pdf.menu",
       "reports.sales",
+      "messages.read",
       "tasks.own",
     ],
   },
   {
     key: "accounts",
     name: "Accounts",
-    requires2fa: true,
+    requires2fa: false,
     permissions: [
       "dashboard.view",
       "customers.read",
@@ -147,19 +156,14 @@ export const ROLES: readonly RoleDefinition[] = [
       "pdf.financial",
       "reports.financial",
       "tasks.own",
+      "vendors.read", "expenses.manage",
     ],
   },
   {
     key: "operations",
     name: "Event Operations",
     requires2fa: false,
-    permissions: ["dashboard.view", "bookings.read", "pdf.function_sheet", "tasks.own"],
-  },
-  {
-    key: "kitchen",
-    name: "Kitchen",
-    requires2fa: false,
-    permissions: ["kitchen.read", "pdf.kitchen_sheet"],
+    permissions: ["dashboard.view", "bookings.read", "pdf.function_sheet", "pdf.menu", "tasks.own", "vendors.read"],
   },
 ];
 

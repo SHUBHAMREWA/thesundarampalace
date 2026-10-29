@@ -6,6 +6,9 @@ import { db } from "@/lib/db";
 import { t } from "@/lib/i18n/localized";
 import en from "@messages/en.json";
 
+// CRM pages read the session on every request (see src/app/admin/layout.tsx).
+export const instant = false;
+
 export const metadata: Metadata = { title: "Menus" };
 
 export default async function MenusPage() {

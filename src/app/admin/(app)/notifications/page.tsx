@@ -11,6 +11,9 @@ import { requireUser } from "@/server/auth/session";
 
 import { MarkReadButton } from "./mark-read";
 
+// CRM pages read the session on every request (see src/app/admin/layout.tsx).
+export const instant = false;
+
 export const metadata: Metadata = { title: "Notifications" };
 
 export default async function NotificationsPage() {

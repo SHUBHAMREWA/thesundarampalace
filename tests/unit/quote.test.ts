@@ -193,6 +193,22 @@ describe("ledger and balances", () => {
     expect(b.retained.toFixed(2)).toBe("100000.00");
   });
 
+  it("owes no refund once the payment itself was reversed", () => {
+    const b = bookingBalance({
+      acceptedTotal: "500000",
+      postEventTotal: "0",
+      ledger: [
+        { type: "PAYMENT", direction: "IN", amount: "200000" },
+        { type: "ADJUSTMENT", direction: "OUT", amount: "200000" },
+      ],
+      deposits: [],
+      cancelled: true,
+      agreedRefund: "100000",
+    });
+    expect(b.refundStillDue.toFixed(2)).toBe("0.00");
+    expect(b.retained.toFixed(2)).toBe("0.00");
+  });
+
   it("allocates payments to the schedule in due order", () => {
     const rows = allocateToInstalments(
       "150000",

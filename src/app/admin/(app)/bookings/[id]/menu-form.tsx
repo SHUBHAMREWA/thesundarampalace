@@ -2,7 +2,14 @@
 
 import { useActionState, useState } from "react";
 
-import { ActionFeedback, ActionForm, FormErrorsContext, SelectField, SubmitButton, TextField } from "@/components/forms/form-kit";
+import {
+  ActionFeedback,
+  ActionForm,
+  FormErrorsContext,
+  SelectField,
+  SubmitButton,
+  TextField,
+} from "@/components/forms/form-kit";
 import { idleState } from "@/server/actions/helpers-shared";
 import type { ActionState } from "@/server/actions/helpers";
 
@@ -14,7 +21,10 @@ export type MenuPackageOption = {
   items: { id: string; course: string; name: string }[];
 };
 
-/** Choose a menu package, the items for courses with a choice, and guaranteed plates. */
+/**
+ * Choose a menu package, the items for courses with a choice, extra dishes
+ * typed in for this booking, and guaranteed plates.
+ */
 export function MenuForm({
   action,
   packages,
@@ -25,13 +35,20 @@ export function MenuForm({
   action: (prev: ActionState, form: FormData) => Promise<ActionState>;
   packages: MenuPackageOption[];
   courseLabels: Record<string, string>;
-  defaults: { menuPackageId: string; itemIds: string[]; guaranteedPlates: string };
+  defaults: {
+    menuPackageId: string;
+    itemIds: string[];
+    extraDishes: Record<string, string>;
+    guaranteedPlates: string;
+  };
   lockNote?: string | null;
 }) {
   const [state, run] = useActionState(action, idleState);
   const [packageId, setPackageId] = useState(defaults.menuPackageId);
   const pkg = packages.find((p) => p.id === packageId);
-  const courses = pkg ? [...new Set(pkg.items.map((i) => i.course))] : [];
+  const courses = pkg
+    ? [...new Set([...pkg.items.map((i) => i.course), "other"])]
+    : [];
   return (
     <ActionForm action={run} className="space-y-4" aria-label="Menu">
       <ActionFeedback state={state} />
@@ -51,7 +68,11 @@ export function MenuForm({
             type="number"
             min={pkg?.minPlates ?? 1}
             defaultValue={defaults.guaranteedPlates}
-            hint={[pkg?.minPlates ? `Minimum ${pkg.minPlates}.` : null, lockNote].filter(Boolean).join(" ") || undefined}
+            hint={
+              [pkg?.minPlates ? `Minimum ${pkg.minPlates}.` : null, lockNote]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
           />
         </div>
         {pkg ? (
@@ -60,26 +81,63 @@ export function MenuForm({
               const rule = pkg.rules.find((r) => r.course === course);
               const items = pkg.items.filter((i) => i.course === course);
               return (
-                <fieldset key={course} className="rounded-md border border-border p-3">
+                <fieldset
+                  key={course}
+                  className="rounded-md border border-border p-3"
+                >
                   <legend className="px-1 text-sm font-medium">
-                    {courseLabels[course] ?? course} {rule ? <span className="text-text-muted">— choose {rule.choose}</span> : <span className="text-text-muted">— all served</span>}
+                    {courseLabels[course] ?? course}{" "}
+                    {items.length === 0 ? null : rule ? (
+                      <span className="text-text-muted">
+                        — choose {rule.choose}
+                      </span>
+                    ) : (
+                      <span className="text-text-muted">— all served</span>
+                    )}
                   </legend>
-                  {rule ? (
+                  {items.length === 0 ? null : rule ? (
                     <div className="grid gap-1 sm:grid-cols-2">
                       {items.map((item) => (
-                        <label key={item.id} className="flex items-center gap-2 text-sm">
-                          <input type="checkbox" name="itemIds" value={item.id} defaultChecked={defaults.itemIds.includes(item.id)} className="size-4 accent-primary" />
+                        <label
+                          key={item.id}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            name="itemIds"
+                            value={item.id}
+                            defaultChecked={defaults.itemIds.includes(item.id)}
+                            className="size-4 accent-primary"
+                          />
                           {item.name}
                         </label>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-text-muted">{items.map((i) => i.name).join(", ")}</p>
+                    <p className="text-sm text-text-muted">
+                      {items.map((i) => i.name).join(", ")}
+                    </p>
                   )}
+                  <TextField
+                    key={`${packageId}-${course}`}
+                    name={`extraDishes.${course}`}
+                    label={
+                      items.length ? "Other dishes for this course" : "Dishes"
+                    }
+                    defaultValue={
+                      packageId === defaults.menuPackageId
+                        ? (defaults.extraDishes[course] ?? "")
+                        : ""
+                    }
+                    hint="Not in the menu above. Separate with commas."
+                    className="mt-2"
+                  />
                 </fieldset>
               );
             })}
-            {state.fieldErrors?.itemIds ? <p className="text-sm text-danger">{state.fieldErrors.itemIds}</p> : null}
+            {state.fieldErrors?.itemIds ? (
+              <p className="text-sm text-danger">{state.fieldErrors.itemIds}</p>
+            ) : null}
           </div>
         ) : null}
       </FormErrorsContext>

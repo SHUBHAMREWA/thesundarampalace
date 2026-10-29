@@ -7,6 +7,9 @@ import { requireUser } from "@/server/auth/session";
 
 import { TwoFactorSetup } from "./two-factor-setup";
 
+// CRM pages read the session on every request (see src/app/admin/layout.tsx).
+export const instant = false;
+
 export const metadata: Metadata = { title: "Set up two-factor authentication" };
 
 async function SetupForUser() {
@@ -18,7 +21,7 @@ export default function TwoFactorSetupPage() {
   return (
     <AuthCard
       title="Two-factor authentication"
-      description="Protects accounts that can see financial and customer data."
+      description="An extra sign-in step that protects your account if your password leaks."
     >
       <Suspense fallback={<Skeleton className="h-40 w-full" />}>
         <SetupForUser />

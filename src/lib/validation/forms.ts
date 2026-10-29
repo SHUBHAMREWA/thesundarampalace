@@ -56,7 +56,7 @@ export const optionalDateKey = z
 export const timeSchema = z
   .string({ error: "Enter a time" })
   .trim()
-  .refine((v) => isTimeOfDay(v), "Use 24-hour time, e.g. 18:30");
+  .refine((v) => isTimeOfDay(v), "Choose a time");
 
 export const optionalTime = z
   .string()

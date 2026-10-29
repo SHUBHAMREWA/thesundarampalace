@@ -12,7 +12,7 @@ One Next.js application that serves three audiences from one codebase and one de
 | Surface | Users | Route group | Indexed |
 |---|---|---|---|
 | Public website (EN + HI) | Couples, families, corporate planners | `src/app/(website)/[locale]/` | Yes |
-| CRM | Staff (sales, accounts, operations, kitchen, managers) | `src/app/admin/` | No (`noindex`, blocked in robots) |
+| CRM | Staff (sales, accounts, operations, managers) | `src/app/admin/` | No (`noindex`, blocked in robots) |
 | CMS | Admins and content editors | `src/app/admin/cms/` | No |
 
 Scope is venues and banquet halls only. There is no room-booking model, route, or copy anywhere.
@@ -104,7 +104,7 @@ Revisit if: a module needs independent scaling or a different runtime.
 
 ### ADR-05 Authentication: Better Auth — *Proposed*
 - Free, self-hosted in our own PostgreSQL (users, sessions, accounts, verification), so no customer or staff data leaves our database.
-- Has a first-party TOTP two-factor plugin with backup codes, which we enforce for Super Admin, Admin and Accounts.
+- Has a first-party TOTP two-factor plugin with backup codes, which is optional per user (owner decision, see docs/security.md).
 - Database sessions with `HttpOnly`, `Secure`, `SameSite=Lax` cookies; sessions can be revoked instantly.
 - Staff sign in with email + password (+ TOTP). No social login. There are no customer accounts.
 - Authorization (roles → permissions) is our own tables and `assertPermission()`; we don't rely on the auth library's role plugin, because the permission matrix is a business artefact we must test directly.
@@ -141,7 +141,8 @@ Revisit if: a module needs independent scaling or a different runtime.
 ### ADR-10 Notifications: outbox + provider adapters — *Accepted*
 - `NotificationService.send({ channel, template, to, data, purpose })` checks consent and writes an `Outbox` row and an in-app `Notification` in the same transaction as the business change. Delivery is attempted immediately after the response (`after()`); failures are retried by the scheduled job.
 - Adapters: in-app (always), email (Resend Free: 100/day, 3,000/month), WhatsApp, SMS.
-- **WhatsApp in free mode:** "Chat on WhatsApp" buttons are plain `wa.me` links (free, no API). Automated WhatsApp messages (reminders, greetings) are charged per message by Meta, so the adapter stays switched off until the business decides to pay; those notifications go by email and in-app instead.
+- **WhatsApp in free mode:** "Chat on WhatsApp" buttons are plain `wa.me` links (free, no API).
+- **WhatsApp API (opt-in, paid per message):** Settings → WhatsApp picks Meta Cloud API (direct) or Twilio (`src/server/services/whatsapp/`). Saving runs a live connection test and keys are only stored if it passes; sending stays paused while the last test failed. Bulk sends use approved templates only (MARKETING needs a WhatsApp opt-in; other templates follow the lead/customer relationship unless the person replied STOP). Every message is an `Outbox` row; webhooks (`/api/webhooks/whatsapp/{meta,twilio}`, signature-checked) move it to DELIVERED/READ/FAILED and store replies in `InboundMessage`. Sending runs right after a campaign (`after()`), hourly by cron, or via "Send waiting now".
 - With no provider configured, the status is `NOT_SENT_NO_PROVIDER` and the CRM says so. We never claim a message was sent.
 
 ### ADR-11 Scheduled work and backups — *Accepted*
@@ -172,7 +173,7 @@ Revisit if: a module needs independent scaling or a different runtime.
 - Ledgers and issued invoices: append-only, enforced by database triggers as well as code.
 
 ### ADR-16 Time — *Accepted*
-- Store `timestamptz` in UTC. Convert at the edges with `@date-fns/tz` (`Asia/Kolkata`). A slot's range is built from the event date and slot times; if end ≤ start, end is the next day.
+- Store `timestamptz` in UTC. Convert at the edges with `@date-fns/tz` (`Asia/Kolkata`). A function's range is built from its date and typed start/end times (there are no fixed slots); if end ≤ start, end is the next day.
 - Financial year labels (`2026-27`) are computed from the Asia/Kolkata date, not UTC.
 
 ### ADR-17 Observability — *Proposed*

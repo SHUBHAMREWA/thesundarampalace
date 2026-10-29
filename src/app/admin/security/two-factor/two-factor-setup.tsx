@@ -30,13 +30,54 @@ export function TwoFactorSetup({ alreadyEnabled, required }: { alreadyEnabled: b
     defaultValues: { code: "" },
   });
 
+  async function turnOff({ password }: { password: string }) {
+    setError(null);
+    const { error: disableError } = await authClient.twoFactor.disable({ password });
+    if (disableError) {
+      setError("Password is incorrect.");
+      return;
+    }
+    navigateAfterAuthChange("/admin/security/two-factor");
+  }
+
   if (alreadyEnabled) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <p className="text-sm">Two-factor authentication is on for your account.</p>
         <Button asChild className="w-full">
           <Link href="/admin">Go to the dashboard</Link>
         </Button>
+        {required ? (
+          <p className="text-sm text-text-muted">Your role requires two-factor authentication, so it can&apos;t be turned off.</p>
+        ) : (
+          <Form {...passwordForm}>
+            <form onSubmit={passwordForm.handleSubmit(turnOff)} className="space-y-4 border-t border-border pt-6" noValidate>
+              <p className="text-sm font-medium">Turn off two-factor authentication</p>
+              {error ? (
+                <Alert variant="destructive" role="alert">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : null}
+              <FormField
+                control={passwordForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirm your password</FormLabel>
+                    <FormControl>
+                      <Input type="password" autoComplete="current-password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" variant="outline" className="w-full" disabled={passwordForm.formState.isSubmitting}>
+                {passwordForm.formState.isSubmitting ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}
+                Turn off two-factor authentication
+              </Button>
+            </form>
+          </Form>
+        )}
       </div>
     );
   }
@@ -80,7 +121,11 @@ export function TwoFactorSetup({ alreadyEnabled, required }: { alreadyEnabled: b
                 Your role requires two-factor authentication before you can use the CRM.
               </AlertDescription>
             </Alert>
-          ) : null}
+          ) : (
+            <p className="text-sm text-text-muted">
+              Optional. After your password, sign-in will also ask for a 6-digit code from an authenticator app on your phone. You can turn it off here later.
+            </p>
+          )}
           {error ? (
             <Alert variant="destructive" role="alert">
               <AlertDescription>{error}</AlertDescription>
@@ -103,6 +148,11 @@ export function TwoFactorSetup({ alreadyEnabled, required }: { alreadyEnabled: b
             {passwordForm.formState.isSubmitting ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}
             Continue
           </Button>
+          {required ? null : (
+            <Button asChild variant="ghost" className="w-full">
+              <Link href="/admin">Not now, back to the dashboard</Link>
+            </Button>
+          )}
         </form>
       </Form>
     );

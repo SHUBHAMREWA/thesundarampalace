@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, type ReactNode } from "react";
 
 import { ActionForm, ActionFeedback, SubmitButton } from "@/components/forms/form-kit";
 import {
@@ -24,12 +24,15 @@ export function DeleteButton({
   description,
   label = "Delete",
   size = "sm",
+  children,
 }: {
-  action: (prev: ActionState) => Promise<ActionState>;
+  action: (prev: ActionState, form: FormData) => Promise<ActionState>;
   title: string;
   description: string;
   label?: string;
   size?: "sm" | "default";
+  /** Extra choices shown in the confirmation (sent with the delete). */
+  children?: ReactNode;
 }) {
   const [state, formAction] = useActionState(action, idleState);
   return (
@@ -45,6 +48,7 @@ export function DeleteButton({
             <AlertDialogTitle>{title}</AlertDialogTitle>
             <AlertDialogDescription>{description}</AlertDialogDescription>
           </AlertDialogHeader>
+          {children}
           <ActionFeedback state={state} />
           <AlertDialogFooter>
             <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
