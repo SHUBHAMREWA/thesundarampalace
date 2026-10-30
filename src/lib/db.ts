@@ -1,6 +1,8 @@
 import "server-only";
 
 import { PrismaPg } from "@prisma/adapter-pg";
+import { attachDatabasePool } from "@vercel/functions";
+import { Pool } from "pg";
 
 import { PrismaClient } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
@@ -9,8 +11,11 @@ import { env } from "@/lib/env";
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function createClient(): PrismaClient {
-  const adapter = new PrismaPg({ connectionString: env().DATABASE_URL });
-  return new PrismaClient({ adapter });
+  // On Neon, DATABASE_URL is the pooled (-pooler) URL. Vercel Fluid compute
+  // closes idle connections before a function instance is suspended.
+  const pool = new Pool({ connectionString: env().DATABASE_URL });
+  attachDatabasePool(pool);
+  return new PrismaClient({ adapter: new PrismaPg(pool) });
 }
 
 export const db: PrismaClient = globalForPrisma.prisma ?? createClient();
