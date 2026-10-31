@@ -3,10 +3,13 @@
 import { revalidatePath } from "next/cache";
 
 import {
+  readyMenuUploadSignature,
+  removeReadyMenuPdf,
   resetBookingFoodMenu,
   resetFoodMenu,
   saveBookingFoodMenu,
   saveFoodMenu,
+  saveReadyMenuPdf,
 } from "@/server/services/food-menu";
 
 import { currentActor, runAction, type ActionState } from "./helpers";
@@ -54,5 +57,27 @@ export async function resetBookingFoodMenuAction(
     await resetBookingFoodMenu(await currentActor(), bookingId);
     revalidatePath(`/admin/bookings/${bookingId}`);
     return { message: "Menu started again from the venue menu." };
+  });
+}
+
+/** Signature for uploading the ready-made menu PDF straight to Cloudinary. */
+export async function readyMenuUploadSignatureAction() {
+  return readyMenuUploadSignature(await currentActor());
+}
+
+/** Records the uploaded ready-made PDF (replacing the previous one). */
+export async function saveReadyMenuPdfAction(upload: unknown): Promise<ActionState> {
+  return runAction(async () => {
+    await saveReadyMenuPdf(await currentActor(), upload);
+    revalidatePath("/admin/catalog");
+    return { message: "Ready-made PDF uploaded." };
+  });
+}
+
+export async function removeReadyMenuPdfAction(): Promise<ActionState> {
+  return runAction(async () => {
+    await removeReadyMenuPdf(await currentActor());
+    revalidatePath("/admin/catalog");
+    return { message: "Ready-made PDF removed." };
   });
 }

@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
 import { resetFoodMenuAction } from "@/server/actions/catalog";
 import { requirePermission } from "@/server/auth/session";
-import { getFoodMenu, menuImages } from "@/server/services/food-menu";
+import {
+  getFoodMenu,
+  getReadyMenuPdf,
+  menuImages,
+} from "@/server/services/food-menu";
 
 import { FoodMenuWorkspace } from "./food-menu-workspace";
 import { FoodMenuPreview } from "./food-menu-preview";
@@ -21,8 +25,9 @@ export const metadata: Metadata = { title: "Food menu" };
 /** The food menu: edit it here, preview it, and download it as a PDF to share. */
 export default async function FoodMenuPage() {
   await requirePermission("catalog.manage");
-  const [menu, saved] = await Promise.all([
+  const [menu, ready, saved] = await Promise.all([
     getFoodMenu(),
+    getReadyMenuPdf(),
     db.siteSetting.findUnique({
       where: { key: "foodMenu" },
       select: { updatedAt: true },
@@ -65,6 +70,11 @@ export default async function FoodMenuPage() {
         initial={menu}
         images={menuImages()}
         originalUrl="/api/food-menu/original"
+        ready={
+          ready
+            ? { pages: ready.pages, bytes: ready.bytes, fileName: ready.fileName, uploadedAt: ready.uploadedAt }
+            : null
+        }
       />
     </>
   );

@@ -19,9 +19,20 @@ import {
 } from "@/lib/pdf/food-menu-html";
 import { documentAssets } from "@/server/documents/assets";
 import { renderPdf } from "@/server/documents/renderer";
+import {
+  authenticatedPdfPageUrl,
+  cloudinaryFolder,
+  cloudinaryReady,
+  destroyImage,
+  downloadAuthenticatedPdf,
+} from "@/server/media/cloudinary-images";
+import { signParams, verifyUploadResponse } from "@/server/media/cloudinary-sign";
 import { assertPermission, type Actor } from "@/server/policies/authorize";
+import { env } from "@/lib/env";
+import { z } from "zod";
 
 import { recordActivity } from "./activity";
+import { RuleError } from "./errors";
 import { bookingVisibility } from "./bookings";
 import { NotFoundError } from "./leads";
 
@@ -178,4 +189,126 @@ export function foodMenuHtml(menu: FoodMenu): string {
 /** The menu as a PDF; null when no PDF renderer is set up (the printable page is used instead). */
 export async function foodMenuPdf(menu: FoodMenu): Promise<Buffer | null> {
   return renderPdf(foodMenuHtml(menu), "Food menu", { fullBleed: true });
+}
+
+// ─── Ready-made menu PDF (uploaded to Cloudinary) ───────────────────────────
+
+/**
+ * The caterer's ready-made menu PDF, sent as it is. Uploaded from the Food
+ * menu screen straight to Cloudinary as a private ("authenticated") file, so
+ * nothing large lives in the project or the database: only this small record.
+ */
+const READY_KEY = "readyMenuPdf";
+/** Cloudinary's file limit on the free plan. */
+export const READY_MENU_MAX_MB = 10;
+
+const readyMenuSchema = z.object({
+  publicId: z.string().min(1).max(300),
+  pages: z.number().int().min(1).max(200),
+  bytes: z.number().int().min(1),
+  fileName: z.string().max(200),
+  uploadedAt: z.string(),
+});
+export type ReadyMenuPdf = z.infer<typeof readyMenuSchema>;
+
+export async function getReadyMenuPdf(): Promise<ReadyMenuPdf | null> {
+  const row = await db.siteSetting.findUnique({ where: { key: READY_KEY } });
+  const parsed = row ? readyMenuSchema.safeParse(row.value) : null;
+  return parsed?.success ? parsed.data : null;
+}
+
+/** Signed parameters for the browser to upload a PDF straight to Cloudinary. */
+export function readyMenuUploadSignature(actor: Actor) {
+  assertPermission(actor, "catalog.manage");
+  if (!cloudinaryReady()) throw new RuleError("Cloudinary is not connected, so files can't be uploaded.");
+  const e = env();
+  const params: Record<string, string> = {
+    allowed_formats: "pdf",
+    folder: cloudinaryFolder("menu"),
+    timestamp: String(Math.floor(Date.now() / 1000)),
+    type: "authenticated",
+  };
+  return {
+    params,
+    signature: signParams(params, e.CLOUDINARY_API_SECRET!),
+    apiKey: e.CLOUDINARY_API_KEY!,
+    cloudName: e.CLOUDINARY_CLOUD_NAME!,
+  };
+}
+
+const uploadResultSchema = z.object({
+  public_id: z.string().min(1).max(300),
+  version: z.union([z.number(), z.string()]),
+  signature: z.string().min(10).max(100),
+  format: z.literal("pdf"),
+  type: z.literal("authenticated"),
+  pages: z.number().int().min(1),
+  bytes: z.number().int().min(1),
+  original_filename: z.string().max(200).optional(),
+});
+
+/** Records an uploaded PDF (after checking Cloudinary's signature) and removes the previous one. */
+export async function saveReadyMenuPdf(actor: Actor, input: unknown): Promise<ReadyMenuPdf> {
+  assertPermission(actor, "catalog.manage");
+  const upload = uploadResultSchema.parse(input);
+  if (!verifyUploadResponse(upload, env().CLOUDINARY_API_SECRET!))
+    throw new RuleError("The upload could not be verified. Please upload the PDF again.");
+  if (!upload.public_id.startsWith(`${cloudinaryFolder("menu")}/`))
+    throw new RuleError("Unexpected upload location.");
+  const previous = await getReadyMenuPdf();
+  const record: ReadyMenuPdf = {
+    publicId: upload.public_id,
+    pages: upload.pages,
+    bytes: upload.bytes,
+    fileName: `${upload.original_filename ?? "menu"}.pdf`,
+    uploadedAt: new Date().toISOString(),
+  };
+  const value = record as unknown as Prisma.InputJsonValue;
+  await db.siteSetting.upsert({
+    where: { key: READY_KEY },
+    update: { value, updatedById: actor.id },
+    create: { key: READY_KEY, value, updatedById: actor.id },
+  });
+  if (previous && previous.publicId !== record.publicId) await destroyImage(previous.publicId, "authenticated");
+  await recordAudit({
+    actorId: actor.id,
+    action: "food_menu.ready_pdf_uploaded",
+    entityType: "site_setting",
+    entityId: READY_KEY,
+    summary: { pages: record.pages, bytes: record.bytes },
+  });
+  return record;
+}
+
+export async function removeReadyMenuPdf(actor: Actor) {
+  assertPermission(actor, "catalog.manage");
+  const current = await getReadyMenuPdf();
+  if (!current) return;
+  await destroyImage(current.publicId, "authenticated");
+  await db.siteSetting.deleteMany({ where: { key: READY_KEY } });
+  await recordAudit({
+    actorId: actor.id,
+    action: "food_menu.ready_pdf_removed",
+    entityType: "site_setting",
+    entityId: READY_KEY,
+  });
+}
+
+/** A page of the ready-made PDF as a JPEG preview (bytes), or null. */
+export async function readyMenuPagePreview(page: number): Promise<Buffer | null> {
+  const current = await getReadyMenuPdf();
+  if (!current || page < 1 || page > current.pages) return null;
+  const url = authenticatedPdfPageUrl(current.publicId, page, 900);
+  const response = url
+    ? await fetch(url, { signal: AbortSignal.timeout(20_000), cache: "no-store" }).catch(() => null)
+    : null;
+  return response?.ok ? Buffer.from(await response.arrayBuffer()) : null;
+}
+
+/** The ready-made PDF file as a stream from Cloudinary, or null. */
+export async function readyMenuPdfFile() {
+  const current = await getReadyMenuPdf();
+  if (!current) return null;
+  const response = await downloadAuthenticatedPdf(current.publicId);
+  return response?.body ? { body: response.body, record: current } : null;
 }

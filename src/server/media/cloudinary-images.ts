@@ -81,3 +81,40 @@ export function authenticatedImageUrl(publicId: string, transform?: string): str
     .replace(/\//g, "_");
   return `https://res.cloudinary.com/${e.CLOUDINARY_CLOUD_NAME}/image/authenticated/s--${signature}--/${path}`;
 }
+
+/**
+ * Signed URL for one page of an authenticated PDF (uploaded as an image), as a
+ * JPEG preview. Cloudinary renders the page; the PDF itself is never public.
+ */
+export function authenticatedPdfPageUrl(publicId: string, page: number, width: number): string | null {
+  const e = env();
+  if (!e.CLOUDINARY_CLOUD_NAME || !e.CLOUDINARY_API_SECRET) return null;
+  const path = `pg_${page},w_${width},c_limit,q_auto/${publicId}.jpg`;
+  const signature = createHash("sha1")
+    .update(path + e.CLOUDINARY_API_SECRET)
+    .digest("base64")
+    .slice(0, 8)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+  return `https://res.cloudinary.com/${e.CLOUDINARY_CLOUD_NAME}/image/authenticated/s--${signature}--/${path}`;
+}
+
+/**
+ * The original PDF file of an authenticated upload, fetched through the
+ * Cloudinary API (free accounts can't deliver PDFs from the CDN).
+ */
+export async function downloadAuthenticatedPdf(publicId: string): Promise<Response | null> {
+  if (!cloudinaryReady()) return null;
+  const e = env();
+  const params = { format: "pdf", public_id: publicId, timestamp: Math.floor(Date.now() / 1000), type: "authenticated" };
+  const query = new URLSearchParams({
+    ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])),
+    api_key: e.CLOUDINARY_API_KEY!,
+    signature: signParams(params, e.CLOUDINARY_API_SECRET!),
+  });
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${e.CLOUDINARY_CLOUD_NAME}/image/download?${query}`, {
+    signal: AbortSignal.timeout(60_000),
+    cache: "no-store",
+  }).catch(() => null);
+  return response?.ok ? response : null;
+}

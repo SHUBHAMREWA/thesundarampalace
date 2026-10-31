@@ -33,6 +33,7 @@ import {
 } from "@/server/actions/cms";
 
 import { sendToCloudinary, sizeError } from "./cloudinary-upload";
+import { DropZone } from "./drop-zone";
 import {
   DevicePreview,
   PhotoGuide,
@@ -252,7 +253,7 @@ export function UploadButton({
     );
   }
 
-  async function onFiles(files: FileList | null) {
+  async function onFiles(files: FileList | File[] | null) {
     if (!files?.length) return;
     setError(null);
     setDone(null);
@@ -291,7 +292,20 @@ export function UploadButton({
   }
 
   return (
-    <div className="space-y-1.5">
+    <DropZone
+      accept={ACCEPT[upload.kind]}
+      multiple={multiple}
+      disabled={!!busy}
+      onFiles={onFiles}
+      onRejected={() =>
+        setError(
+          upload.kind === "video"
+            ? "Drop a video file (MP4, WebM or MOV)."
+            : "Drop photo files (JPG, PNG, WebP or AVIF).",
+        )
+      }
+      className="space-y-1.5"
+    >
       <input
         ref={input}
         type="file"
@@ -321,6 +335,11 @@ export function UploadButton({
               ? "Upload photos"
               : "Upload a photo")}
       </Button>
+      <span className="ml-2 text-xs text-text-muted">
+        {upload.kind === "video"
+          ? "or drag and drop a video here"
+          : `or drag and drop ${multiple ? "photos" : "a photo"} here — converted to WebP automatically`}
+      </span>
       {error ? (
         <p className="text-sm text-danger" role="alert">
           {error}
@@ -331,7 +350,7 @@ export function UploadButton({
           {done}
         </p>
       ) : null}
-    </div>
+    </DropZone>
   );
 }
 

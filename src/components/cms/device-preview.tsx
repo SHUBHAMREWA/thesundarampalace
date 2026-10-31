@@ -71,7 +71,7 @@ const GUIDES: Record<
     shape: "Landscape",
     ratio: "16:9",
     keep: "Keep people, the stage or the gate in the centre. Phones show only the middle third (tall crop), desktops show nearly the full width.",
-    file: "JPG, PNG or WebP · up to 10 MB",
+    file: "JPG, PNG or WebP · up to 40 MB",
   },
   video: {
     size: "1920 × 1080 px",
@@ -85,42 +85,42 @@ const GUIDES: Record<
     shape: "Wide landscape",
     ratio: "about 12:5",
     keep: "Desktops show a thin strip from the middle (~5:1), phones a squarer crop (~3:2). Keep the subject in the very centre; avoid text in the photo.",
-    file: "JPG, PNG or WebP · up to 10 MB",
+    file: "JPG, PNG or WebP · up to 40 MB",
   },
   tile: {
     size: "1600 × 1200 px (or larger)",
     shape: "Landscape",
     ratio: "4:3",
     keep: "Shown the same on desktop and phone. A 4:3 photo is never cropped; other shapes lose their edges.",
-    file: "JPG, PNG or WebP · up to 10 MB",
+    file: "JPG, PNG or WebP · up to 40 MB",
   },
   gallery: {
     size: "1600 × 1200 px (or larger)",
     shape: "Landscape",
     ratio: "4:3",
     keep: "4:3 on the Gallery page, square on the homepage — keep the subject in the centre so both look good.",
-    file: "JPG, PNG or WebP · up to 10 MB each",
+    file: "JPG, PNG or WebP · up to 40 MB each",
   },
   portrait: {
     size: "1200 × 1500 px (or larger)",
     shape: "Portrait (upright)",
     ratio: "4:5",
     keep: "Face in the upper half, some space above the head.",
-    file: "JPG, PNG or WebP · up to 10 MB",
+    file: "JPG, PNG or WebP · up to 40 MB",
   },
   wide: {
     size: "1600 × 900 px (or larger)",
     shape: "Landscape",
     ratio: "16:9",
     keep: "16:9 at the top of the article and in WhatsApp/Facebook shares; the blog list shows a 3:2 crop — keep the subject in the centre.",
-    file: "JPG, PNG or WebP · up to 10 MB",
+    file: "JPG, PNG or WebP · up to 40 MB",
   },
   avatar: {
     size: "800 × 800 px",
     shape: "Square",
     ratio: "1:1",
     keep: "Face in the centre; it is shown in a small circle.",
-    file: "JPG, PNG or WebP · up to 10 MB",
+    file: "JPG, PNG or WebP · up to 40 MB",
   },
 };
 
@@ -139,7 +139,7 @@ export function PhotoGuide({ guide, className }: { guide: GuideKey; className?: 
         </span>
       </p>
       <p className="mt-1 text-text-muted">{g.keep}</p>
-      <p className="mt-0.5 text-xs text-text-muted">{g.file}. Photos are resized and compressed automatically.</p>
+      <p className="mt-0.5 text-xs text-text-muted">{g.file}. Converted to WebP automatically; only very large photos are resized, without visible loss of quality.</p>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
 } from "@/components/cms/cloudinary-upload";
 import { DeleteButton } from "@/components/cms/delete-button";
 import { DevicePreview } from "@/components/cms/device-preview";
+import { DropZone } from "@/components/cms/drop-zone";
 import {
   ActionForm,
   ActionFeedback,
@@ -120,8 +121,23 @@ export function UploadForm() {
         </Alert>
       ) : null}
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="upload-file">File</Label>
+        <DropZone
+          accept={ACCEPT}
+          multiple={false}
+          disabled={busy}
+          onFiles={([file]) => {
+            // Put the dropped file into the form's file input, as if it had been chosen.
+            const input = document.getElementById("upload-file") as HTMLInputElement | null;
+            if (!input) return;
+            const transfer = new DataTransfer();
+            transfer.items.add(file);
+            input.files = transfer.files;
+            setChosen(file);
+          }}
+          onRejected={() => setFieldErrors({ file: "That file type can't be uploaded here." })}
+          className="space-y-1.5"
+        >
+          <Label htmlFor="upload-file">File (choose, or drag and drop here)</Label>
           <Input
             id="upload-file"
             name="file"
@@ -132,15 +148,15 @@ export function UploadForm() {
             onChange={(e) => setChosen(e.target.files?.[0] ?? null)}
           />
           <p className="text-xs text-text-muted">
-            JPEG, PNG, WebP, AVIF up to 10 MB (photos are converted to WebP
-            before upload) · MP4/WebM up to 50 MB (hero film: 1920×1080, 15–30
+            JPEG, PNG, WebP, AVIF up to 40 MB (photos are converted to WebP
+            and big ones are resized before upload) · MP4/WebM up to 50 MB (hero film: 1920×1080, 15–30
             s) · PDF up to 15 MB. Everything is stored in Cloudinary; deleting
             or replacing a file here also deletes it there.
           </p>
           {fieldErrors.file ? (
             <p className="text-sm text-danger">{fieldErrors.file}</p>
           ) : null}
-        </div>
+        </DropZone>
         <SelectField
           name="group"
           label="Used for"

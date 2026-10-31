@@ -3,7 +3,10 @@
 import { compressToWebp } from "@/lib/media/to-webp";
 import { getUploadSignatureAction } from "@/server/actions/cms";
 
-const MAX_MB = { image: 10, video: 50, application: 15 } as const;
+/** What can be chosen. Photos are resized and converted first, so they may start big. */
+const MAX_MB = { image: 40, video: 50, application: 15 } as const;
+/** Cloudinary's limit for one image (free plan), checked after conversion. */
+const CLOUDINARY_IMAGE_MB = 10;
 
 /** Size check shared by every upload; returns an error message or null. */
 export function sizeError(file: File): string | null {
@@ -20,6 +23,8 @@ export async function sendToCloudinary(
   group: string,
 ): Promise<unknown> {
   const ready = await compressToWebp(file, "website");
+  if (ready.type.startsWith("image/") && ready.size > CLOUDINARY_IMAGE_MB * 1024 * 1024)
+    throw new Error(`${file.name}: still over ${CLOUDINARY_IMAGE_MB} MB after converting — please use a smaller photo.`);
   const signed = await getUploadSignatureAction(
     group,
     file.type.startsWith("video/") ? "video" : "other",

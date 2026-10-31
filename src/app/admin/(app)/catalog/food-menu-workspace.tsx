@@ -1,17 +1,17 @@
 "use client";
 
-import { Download, FileText, Loader2, MousePointerClick } from "lucide-react";
+import { FileText, Loader2, MousePointerClick } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { ImageViewer } from "@/components/crm/image-viewer";
 import { Button } from "@/components/ui/button";
 import { cleanMenu, type FoodMenu } from "@/lib/menu/food-menu";
 import { cn } from "@/lib/utils";
 import { saveFoodMenuAction } from "@/server/actions/catalog";
 
 import { FoodMenuCanvas, type MenuImages } from "./food-menu-canvas";
+import { ReadyMenuPanel, type ReadyMenu } from "./ready-menu-panel";
 
 const TABS = [
   { key: "page", label: "Edit on the page", icon: MousePointerClick },
@@ -27,10 +27,12 @@ export function FoodMenuWorkspace({
   initial,
   images,
   originalUrl,
+  ready,
 }: {
   initial: FoodMenu;
   images: MenuImages;
   originalUrl: string;
+  ready: ReadyMenu | null;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("page");
@@ -99,51 +101,7 @@ export function FoodMenuWorkspace({
         </>
       ) : null}
       {tab === "original" ? (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface p-4">
-            <div>
-              <p className="font-medium">The menu PDF as you supplied it</p>
-              <p className="mt-1 text-sm text-text-muted">
-                Ready to send as it is (10 pages, about 8 MB). Its text is drawn
-                as shapes, so it can&apos;t be edited; edit the template
-                instead.
-              </p>
-            </div>
-            <Button asChild>
-              <a href={originalUrl}>
-                <Download aria-hidden="true" /> Download ready-made PDF
-              </a>
-            </Button>
-          </div>
-          {/* Page previews (JPEGs of the PDF); click one to see it large. */}
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from(
-              { length: 10 },
-              (_, i) => `${originalUrl}?page=${i + 1}`,
-            ).map((src, i) => (
-              <li key={src}>
-                <ImageViewer
-                  src={src}
-                  title={`Page ${i + 1} of 10`}
-                  label={`Open page ${i + 1}`}
-                  className="block w-full overflow-hidden rounded-md border border-border bg-surface shadow-[var(--shadow-card)] hover:border-primary"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element -- staff-only page preview */}
-                  <img
-                    src={src}
-                    alt={`Ready-made menu, page ${i + 1}`}
-                    loading="lazy"
-                    className="aspect-[1/1.414] w-full object-cover"
-                  />
-                </ImageViewer>
-                <p className="mt-1 text-center text-xs text-text-muted">
-                  Page {i + 1}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+        <ReadyMenuPanel ready={ready} fileUrl={originalUrl} />      ) : null}
 
       {tab !== "original" ? (
         <div className="sticky bottom-0 flex items-center gap-3 border-t border-border bg-bg py-3">
