@@ -69,7 +69,7 @@ export function TestimonialEditor({ id, defaults, media, uploads }: { id: string
             ownOnly
             name="photoAssetId"
             label="Guest photo (optional)"
-            hint="Best: square, 800×800 or larger, face in the centre. Without a photo the card shows their initials."
+            hint="Without a photo the card shows their initials."
             options={media}
             defaultValue={defaults.photoAssetId}
             error={e.media}

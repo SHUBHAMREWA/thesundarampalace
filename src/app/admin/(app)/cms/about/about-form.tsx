@@ -31,7 +31,6 @@ export function AboutPhotosForm({
           <MediaPicker
             name="headerAssetId"
             label="Photo"
-            hint="Best: landscape 2400×1000 or larger. Keep the main subject in the centre — phones show a squarer crop."
             options={media}
             defaultValue={defaults.headerAssetId}
             error={e.media}
@@ -49,7 +48,6 @@ export function AboutPhotosForm({
           <MediaPicker
             name="ownerAssetId"
             label="Photo"
-            hint="Best: portrait 1200×1500 (4:5) or larger, face in the upper half."
             options={media}
             defaultValue={defaults.ownerAssetId}
             preview="portrait"

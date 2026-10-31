@@ -125,7 +125,7 @@ export function BlogEditor({
             options={media}
             defaultValue={defaults.coverAssetId}
             error={e.coverAssetId}
-            hint="Best: landscape 1600×900 (16:9) or larger. Shown on the blog list, at the top of the article and in shares."
+            hint="Shown on the blog list, at the top of the article and in shares."
             preview="wide"
             upload={{ enabled: uploads, group: "other", kind: "image", alt: text.title || "The Sundaram Palace blog" }}
           />

@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useActionState, useState } from "react";
 
 import { DeleteButton } from "@/components/cms/delete-button";
+import { DevicePreview, PhotoGuide } from "@/components/cms/device-preview";
 import { UploadButton, type MediaOption } from "@/components/cms/media-picker";
 import {
   ActionForm,
@@ -67,6 +68,7 @@ export function AddToGalleryForm({
         ) : null}
       </div>
 
+      <PhotoGuide guide="gallery" />
       <UploadButton
         upload={{
           enabled: uploads,
@@ -78,6 +80,9 @@ export function AddToGalleryForm({
         onAdded={(added) => setPhotos((p) => [...p, ...added])}
       />
 
+      {photos.length ? (
+        <DevicePreview src={photos[photos.length - 1].publicId} layout="gallery" />
+      ) : null}
       {photos.length ? (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {photos.map((photo) => (

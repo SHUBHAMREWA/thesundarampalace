@@ -33,7 +33,12 @@ import {
 } from "@/server/actions/cms";
 
 import { sendToCloudinary, sizeError } from "./cloudinary-upload";
-import { DevicePreview, type PreviewLayout } from "./device-preview";
+import {
+  DevicePreview,
+  PhotoGuide,
+  type GuideKey,
+  type PreviewLayout,
+} from "./device-preview";
 
 export type MediaOption = {
   id: string;
@@ -341,6 +346,7 @@ export function MediaPicker({
   preview = false,
   upload,
   ownOnly = false,
+  guide,
 }: {
   name: string;
   label: string;
@@ -353,8 +359,11 @@ export function MediaPicker({
   upload?: PickerUpload;
   /** List only this item's own photo (and new uploads), not the rest of the library. */
   ownOnly?: boolean;
+  /** The size guide shown above the upload (defaults to the preview layout). */
+  guide?: GuideKey;
 }) {
   const [value, setValue] = useState(defaultValue ?? "");
+  const guideKey = guide ?? (preview || undefined);
   const [own] = useState(defaultValue ? [defaultValue] : []);
   const [added, setAdded] = useState<MediaOption[]>([]);
   const [deleted, setDeleted] = useState<string[]>([]);
@@ -380,6 +389,7 @@ export function MediaPicker({
       }
       error={error}
     >
+      {guideKey ? <PhotoGuide guide={guideKey} className="mb-3" /> : null}
       <div className="flex items-center gap-3">
         <Thumb option={chosen} className="size-14 shrink-0" />
         <select
@@ -448,6 +458,7 @@ export function MediaMultiPicker({
   preview = false,
   upload,
   ownOnly = false,
+  guide,
 }: {
   name: string;
   label: string;
@@ -460,8 +471,11 @@ export function MediaMultiPicker({
   upload?: PickerUpload;
   /** List only this item's own photos (and new uploads), not the rest of the library. */
   ownOnly?: boolean;
+  /** The size guide shown above the photos (defaults to the preview layout). */
+  guide?: GuideKey;
 }) {
   const [selected, setSelected] = useState<string[]>(defaultValue);
+  const guideKey = guide ?? (preview || undefined);
   const [own] = useState(defaultValue);
   const [focus, setFocus] = useState<string | null>(null);
   const [added, setAdded] = useState<MediaOption[]>([]);
@@ -486,6 +500,7 @@ export function MediaMultiPicker({
       <legend className="text-sm font-medium">{label}</legend>
       {hint ? <p className="text-sm text-text-muted">{hint}</p> : null}
       {error ? <p className="text-sm text-danger">{error}</p> : null}
+      {guideKey ? <PhotoGuide guide={guideKey} /> : null}
       {selected.map((id) => (
         <input key={id} type="hidden" name={name} value={id} />
       ))}

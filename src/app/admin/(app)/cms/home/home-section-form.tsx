@@ -198,7 +198,7 @@ function HeroMediaFields({
         <MediaMultiPicker
           name="slideAssetIds"
           label="Slideshow photos (click in the order to show them)"
-          hint="Best: landscape 1920×1080 or larger (16:9), subject in the centre. 3–6 photos work well."
+          hint="3–6 photos work well."
           options={images}
           defaultValue={defaults.slideAssetIds}
           error={errors.slideAssetIds}
@@ -218,7 +218,8 @@ function HeroMediaFields({
           label="Video"
           options={videos}
           defaultValue={defaults.videoAssetId}
-          hint="One video plays on a loop, without sound. Upload a new one to replace it, or Delete to remove it. Best: landscape 1920×1080 (16:9), 15–30 seconds, MP4 or iPhone MOV, up to 50 MB. Keep the main subject in the centre — phones show only the middle."
+          hint="One video plays on a loop, without sound. Upload a new one to replace it, or Delete to remove it."
+          guide="video"
           error={errors.videoAssetId}
           upload={{
             enabled: uploads,
@@ -351,7 +352,6 @@ export function HomeSectionForm({
           <MediaMultiPicker
             name="pictureAssetIds"
             label="Pictures (visitors move through them with left/right arrows)"
-            hint="Best: landscape 1600×1200 (4:3) or larger."
             options={images}
             defaultValue={defaults.pictureAssetIds}
             error={e.pictureAssetIds}

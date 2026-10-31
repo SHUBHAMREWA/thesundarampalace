@@ -60,7 +60,7 @@ export function HallEditor({
             ownOnly
             name="imageIds"
             label="Photos (click in the order to show them)"
-            hint="Best: landscape 1600×1200 or larger. Upload as many as you like."
+            hint="Upload as many as you like."
             options={images}
             defaultValue={defaults.imageIds}
             error={e.media}

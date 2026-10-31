@@ -25,6 +25,7 @@
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "db:prod": "node scripts/prod-prepare.mjs",
+    "admin:create": "tsx scripts/create-admin.ts",
     "db:seed:sample": "tsx prisma/seed-sample.ts"
   },
   "dependencies": {

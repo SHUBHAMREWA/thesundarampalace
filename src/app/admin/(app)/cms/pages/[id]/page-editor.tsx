@@ -46,7 +46,7 @@ function CelebrationForm({ id, defaults, media, uploads }: { id: string; default
             ownOnly
             name="imageIds"
             label="Photos (click in the order to show them)"
-            hint="Best: landscape 1600×1200 or larger. Upload as many as you like."
+            hint="Upload as many as you like."
             options={media}
             defaultValue={defaults.imageIds}
             error={e.media}
@@ -133,7 +133,6 @@ function CateringForm({ id, defaults, media, uploads }: { id: string; defaults: 
           <MediaPicker
             name="heroAssetId"
             label="Header photo (top of the page)"
-            hint="Best: landscape 2400×1000 or larger."
             options={media}
             defaultValue={defaults.heroAssetId}
             preview="banner"
@@ -143,7 +142,7 @@ function CateringForm({ id, defaults, media, uploads }: { id: string; defaults: 
             ownOnly
             name="imageIds"
             label="Food and service gallery (click in the order to show them)"
-            hint="Best: landscape 1600×1200 or larger. Upload as many as you like."
+            hint="Upload as many as you like."
             options={media}
             defaultValue={defaults.imageIds}
             error={e.media}
@@ -199,7 +198,6 @@ function StandardPageForm({ id, kind, defaults, media, uploads }: { id: string; 
           <MediaPicker
             name="heroAssetId"
             label="Header photo (top of the page)"
-            hint="Best: landscape 2400×1000 or larger. Keep the main subject in the centre — phones show a squarer crop."
             options={media}
             defaultValue={defaults.heroAssetId}
             preview="banner"
