@@ -7,13 +7,11 @@ import { toast } from "sonner";
 
 import { ImageViewer } from "@/components/crm/image-viewer";
 import { Button } from "@/components/ui/button";
-import type { FoodMenu } from "@/lib/menu/food-menu";
+import { cleanMenu, type FoodMenu } from "@/lib/menu/food-menu";
 import { cn } from "@/lib/utils";
 import { saveFoodMenuAction } from "@/server/actions/catalog";
 
 import { FoodMenuCanvas, type MenuImages } from "./food-menu-canvas";
-
-const clean = (list: string[]) => list.map((l) => l.trim()).filter(Boolean);
 
 const TABS = [
   { key: "page", label: "Edit on the page", icon: MousePointerClick },
@@ -41,14 +39,7 @@ export function FoodMenuWorkspace({
 
   const save = () =>
     start(async () => {
-      const result = await saveFoodMenuAction({
-        ...menu,
-        rateList: { ...menu.rateList, notes: clean(menu.rateList.notes) },
-        sections: menu.sections.map((s) => ({
-          ...s,
-          groups: s.groups.map((g) => ({ ...g, items: clean(g.items) })),
-        })),
-      });
+      const result = await saveFoodMenuAction(cleanMenu(menu));
       if (result.ok) {
         toast.success(result.message ?? "Saved.");
         router.refresh();

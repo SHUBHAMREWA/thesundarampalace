@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/metadata";
 import Link from "next/link";
 import { Camera, Heart, Sparkles } from "lucide-react";
 import { currentLocale } from "@/i18n/current";
@@ -10,10 +11,14 @@ import { t } from "@/lib/i18n/localized";
 import { formatDateKey, dateKey } from "@/lib/time";
 import { listPublicRealWeddings } from "@/server/services/real-weddings";
 
-export const metadata: Metadata = {
-  title: "Real Wedding Stories | The Sundaram Palace",
-  description: "Browse curated wedding stories and celebrations hosted at The Sundaram Palace.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata({
+    locale: await currentLocale(),
+    path: "/real-weddings",
+    title: "Real Wedding Stories",
+    description: "Browse curated wedding stories and celebrations hosted at The Sundaram Palace.",
+  });
+}
 
 export default async function RealWeddingsPage() {
   const locale = await currentLocale();

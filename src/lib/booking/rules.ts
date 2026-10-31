@@ -27,7 +27,8 @@ const TRANSITIONS: Record<BookingStatus, readonly BookingStatus[]> = {
   CONFIRMED: ["TENTATIVE", "IN_PROGRESS", "COMPLETED", "CANCELLED"],
   IN_PROGRESS: ["CONFIRMED", "TENTATIVE", "COMPLETED"],
   COMPLETED: ["CONFIRMED", "TENTATIVE"],
-  CANCELLED: [],
+  // Restoring a booking cancelled by mistake; it needs a reason and re-reserves its halls.
+  CANCELLED: ["CONFIRMED"],
 };
 
 export function canTransition(from: BookingStatus, to: BookingStatus): boolean {
@@ -42,7 +43,7 @@ const ORDER: Record<BookingStatus, number> = { ENQUIRY_HOLD: 0, TENTATIVE: 1, QU
 
 /** A move from a firm status back to an earlier one (un-confirm, re-open). */
 export function isStepBack(from: BookingStatus, to: BookingStatus): boolean {
-  return isFirm(from) && to !== "CANCELLED" && ORDER[to] < ORDER[from];
+  return (isFirm(from) || from === "CANCELLED") && to !== "CANCELLED" && ORDER[to] < ORDER[from];
 }
 
 /** Confirmed-or-later bookings count as firm (calendar, revenue, menus). */

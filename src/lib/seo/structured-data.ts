@@ -8,6 +8,8 @@ export function articleJsonLd(post: {
   publishedAt: string | null;
   updatedAt: string;
   publisherName: string;
+  /** Absolute URL of the venue's square logo (the app icon). */
+  publisherLogo?: string;
   inLanguage: string;
 }): Record<string, unknown> {
   return {
@@ -20,7 +22,11 @@ export function articleJsonLd(post: {
     ...(post.description ? { description: post.description } : {}),
     ...(post.imageUrl ? { image: [post.imageUrl] } : {}),
     author: { "@type": "Organization", name: post.author },
-    publisher: { "@type": "Organization", name: post.publisherName },
+    publisher: {
+      "@type": "Organization",
+      name: post.publisherName,
+      ...(post.publisherLogo ? { logo: { "@type": "ImageObject", url: post.publisherLogo } } : {}),
+    },
     ...(post.publishedAt ? { datePublished: post.publishedAt } : {}),
     dateModified: post.updatedAt,
     inLanguage: post.inLanguage,
@@ -63,4 +69,33 @@ export function eventVenueJsonLd(facts: VenueFacts): Record<string, unknown> {
   const sameAs = (facts.sameAs ?? []).filter((v): v is string => !!v);
   if (sameAs.length) data.sameAs = sameAs;
   return data;
+}
+
+/** WebSite structured data: the site name Google shows above search results. */
+export function websiteJsonLd(site: {
+  name: string;
+  url: string;
+  inLanguage: string;
+}): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: site.name,
+    url: site.url,
+    inLanguage: site.inLanguage,
+  };
+}
+
+/** BreadcrumbList structured data: the path to a page (Home › Blog › Post). */
+export function breadcrumbJsonLd(items: { name: string; url: string }[]): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: item.name,
+      item: item.url,
+    })),
+  };
 }

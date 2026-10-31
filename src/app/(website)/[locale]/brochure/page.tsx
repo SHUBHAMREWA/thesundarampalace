@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/metadata";
 import { currentLocale } from "@/i18n/current";
 
 import { Container } from "@/components/layout/container";
@@ -6,10 +7,14 @@ import { PageHero } from "@/components/website/page-hero";
 import { BrochureDownloadForm } from "@/components/website/brochure-download-form";
 import { Building, Utensils, Shield } from "lucide-react";
 
-export const metadata: Metadata = {
-  title: "Download Luxury E-Brochure",
-  description: "Official venue brochure with hall dimensions, seating capacities, catering menus, and policies.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata({
+    locale: await currentLocale(),
+    path: "/brochure",
+    title: "Download Luxury E-Brochure",
+    description: "Official venue brochure with hall dimensions, seating capacities, catering menus, and policies.",
+  });
+}
 
 export default async function BrochurePage() {
   const locale = await currentLocale();

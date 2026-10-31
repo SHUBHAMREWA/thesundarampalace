@@ -21,6 +21,8 @@ export const rateRowSchema = z.object({
 export const menuGroupSchema = z.object({
   heading: text(60),
   items: z.array(text(80)).max(80),
+  /** A booking's menu only: which items are picked (blue, printed) — same order as items. */
+  picked: z.array(z.boolean()).max(80).optional(),
 });
 
 export const menuSectionSchema = z.object({
@@ -45,6 +47,8 @@ export const foodMenuSchema = z.object({
     contact: text(60),
   }),
   sections: z.array(menuSectionSchema).max(20),
+  /** A booking's menu only: false leaves the rate-list page out of its print. */
+  showRateList: z.boolean().optional(),
 });
 
 export type FoodMenu = z.infer<typeof foodMenuSchema>;
@@ -52,6 +56,69 @@ export type FoodMenu = z.infer<typeof foodMenuSchema>;
 /** Download link of the menu PDF (an API route, so a plain link downloads it). */
 export const FOOD_MENU_PDF_URL = "/api/food-menu/pdf";
 export type MenuSection = z.infer<typeof menuSectionSchema>;
+
+/** Download link of one booking's menu (only its picked items). */
+export const bookingFoodMenuPdfUrl = (bookingId: string) =>
+  `${FOOD_MENU_PDF_URL}?booking=${encodeURIComponent(bookingId)}`;
+
+/** A venue menu copied for a booking: every item starts unpicked (red) until staff tick it. */
+export function menuForBooking(menu: FoodMenu): FoodMenu {
+  return {
+    ...menu,
+    showRateList: true,
+    sections: menu.sections.map((s) => ({
+      ...s,
+      groups: s.groups.map((g) => ({ ...g, picked: g.items.map(() => false) })),
+    })),
+  };
+}
+
+/** Drops blank items (with their pick marks) before saving. */
+export function cleanMenu(menu: FoodMenu): FoodMenu {
+  const notes = menu.rateList.notes.map((n) => n.trim()).filter(Boolean);
+  return {
+    ...menu,
+    rateList: { ...menu.rateList, notes },
+    sections: menu.sections.map((s) => ({
+      ...s,
+      groups: s.groups.map((g) => {
+        const keep = g.items.map((item) => item.trim() !== "");
+        return {
+          ...g,
+          items: g.items.filter((_, k) => keep[k]).map((i) => i.trim()),
+          ...(g.picked ? { picked: g.picked.filter((_, k) => keep[k]) } : {}),
+        };
+      }),
+    })),
+  };
+}
+
+/** What prints: for a booking's menu only the picked items (sections with none are left out). */
+export function printableMenu(menu: FoodMenu): FoodMenu {
+  const picking = menu.sections.some((s) => s.groups.some((g) => g.picked));
+  const sections = menu.sections.map((s) => ({
+    ...s,
+    groups: s.groups.map((g) =>
+      g.picked
+        ? {
+            heading: g.heading,
+            items: g.items.filter((_, k) => g.picked?.[k] === true),
+          }
+        : g,
+    ),
+  }));
+  return {
+    ...menu,
+    sections: picking
+      ? sections
+          .map((s) => ({
+            ...s,
+            groups: s.groups.filter((g) => g.items.length),
+          }))
+          .filter((s) => s.groups.length)
+      : sections,
+  };
+}
 
 const row = (
   no: string,

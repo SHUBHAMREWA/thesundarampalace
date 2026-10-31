@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/metadata";
 import { connection } from "next/server";
 import { currentLocale } from "@/i18n/current";
 
@@ -9,10 +10,14 @@ import { DateChecker } from "@/components/website/date-checker";
 import { todayIST } from "@/lib/time";
 import { checkPublicDateAvailability } from "@/server/services/availability";
 
-export const metadata: Metadata = {
-  title: "Check Date Availability",
-  description: "Check whether a hall is free on your date at The Sundaram Palace.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata({
+    locale: await currentLocale(),
+    path: "/check-date",
+    title: "Check Date Availability",
+    description: "Check whether a hall is free on your date at The Sundaram Palace.",
+  });
+}
 
 async function DynamicDateChecker({ locale }: { locale: "en" | "hi" }) {
   await connection();

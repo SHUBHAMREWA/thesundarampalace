@@ -26,8 +26,8 @@ import {
   cloudinaryVideoPoster,
   cloudinaryVideoUrl,
 } from "@/lib/media/cloudinary";
-import { pageMetadata } from "@/lib/seo/metadata";
-import { eventVenueJsonLd } from "@/lib/seo/structured-data";
+import { DEFAULT_OG_IMAGE, pageMetadata } from "@/lib/seo/metadata";
+import { eventVenueJsonLd, websiteJsonLd } from "@/lib/seo/structured-data";
 import { env } from "@/lib/env";
 import { cn } from "@/lib/utils";
 import { enquiryFormProps } from "@/server/cms/enquiry-props";
@@ -509,17 +509,19 @@ export default async function HomePage() {
     : halls[0]?.images[0]
       ? cloudinaryImageUrl(halls[0].images[0].publicId, 1200)
       : null;
+  const site = env().NEXT_PUBLIC_SITE_URL;
   return (
     <>
+      <JsonLd data={websiteJsonLd({ name: contact.displayName, url: site, inLanguage: locale === "hi" ? "hi-IN" : "en-IN" })} />
       <JsonLd
         data={eventVenueJsonLd({
           name: contact.displayName,
-          url: `${env().NEXT_PUBLIC_SITE_URL}/${locale}`,
+          url: `${site}/${locale}`,
           telephone: contact.phone,
           email: contact.email,
           streetAddress: contact.address,
           city: contact.city,
-          imageUrl: posterUrl,
+          imageUrl: posterUrl ?? `${site}${DEFAULT_OG_IMAGE.url}`,
           sameAs: [
             contact.contact.instagramUrl,
             contact.contact.facebookUrl,

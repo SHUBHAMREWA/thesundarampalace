@@ -28,6 +28,12 @@ const EDIT_CSS = `
 .fm .row-remove { float: right; font: 600 11pt var(--fm-sans); color: var(--color-danger); background: none; border: 0; cursor: pointer; opacity: 0; }
 .fm tr:hover .row-remove, .fm .row-remove:focus { opacity: 1; }
 .fm .add-page { font: 600 11pt var(--fm-sans); color: var(--color-primary); background: var(--color-surface); border: 1px dashed var(--color-primary); border-radius: 6px; padding: 3mm 8mm; cursor: pointer; }
+.fm .item.pickable { display: flex; align-items: baseline; gap: 1.5mm; }
+.fm .pick { flex: none; width: 4.2mm; height: 4.2mm; border-radius: 50%; border: 0; font: 700 8pt var(--fm-sans); line-height: 4.2mm; color: var(--color-surface); cursor: pointer; padding: 0; }
+.fm .pick.on { background: var(--color-info); }
+.fm .pick.off { background: var(--color-danger); }
+.fm .item.picked { color: var(--color-info); }
+.fm .item.unpicked { color: var(--color-danger); opacity: 0.75; }
 .fm .add-item { font: inherit; font-size: 9pt; color: var(--color-primary); background: none; border: 1px dashed var(--color-primary); border-radius: 4px; padding: 0.5mm 2mm; margin-top: 2mm; cursor: pointer; }
 `;
 
@@ -78,10 +84,13 @@ export function FoodMenuCanvas({
   menu,
   setMenu,
   images,
+  pickable = false,
 }: {
   menu: FoodMenu;
   setMenu: Dispatch<SetStateAction<FoodMenu>>;
   images: MenuImages;
+  /** A booking's menu: each item gets a blue (printed) / red (left out) mark. */
+  pickable?: boolean;
 }) {
   const rate = menu.rateList;
   const setRate = (patch: Partial<FoodMenu["rateList"]>) =>
@@ -105,9 +114,79 @@ export function FoodMenuCanvas({
   const addItem = (i: number, g: number) =>
     setSection(i, {
       groups: menu.sections[i].groups.map((group, j) =>
-        j === g ? { ...group, items: [...group.items, "NEW ITEM"] } : group,
+        j === g
+          ? {
+              ...group,
+              items: [...group.items, "NEW ITEM"],
+              ...(pickable
+                ? {
+                    picked: [
+                      ...(group.picked ?? group.items.map(() => false)),
+                      true,
+                    ],
+                  }
+                : {}),
+            }
+          : group,
       ),
     });
+  const togglePick = (i: number, g: number, k: number) =>
+    setSection(i, {
+      groups: menu.sections[i].groups.map((group, j) => {
+        if (j !== g) return group;
+        const picked = group.picked ?? group.items.map(() => false);
+        return { ...group, picked: picked.map((p, n) => (n === k ? !p : p)) };
+      }),
+    });
+  const pickAll = (i: number, value: boolean) =>
+    setSection(i, {
+      groups: menu.sections[i].groups.map((group) => ({
+        ...group,
+        picked: group.items.map(() => value),
+      })),
+    });
+  /** One menu item: editable text, plus its blue/red mark on a booking's menu. */
+  const item = (
+    i: number,
+    g: number,
+    k: number,
+    value: string,
+    css: CSSProperties,
+  ) => {
+    if (!pickable)
+      return (
+        <Text
+          key={k}
+          as="div"
+          className="item"
+          style={css}
+          value={value}
+          onChange={(v) => setItem(i, g, k, v)}
+        />
+      );
+    const on = menu.sections[i].groups[g].picked?.[k] === true;
+    return (
+      <div
+        key={k}
+        className={`item pickable ${on ? "picked" : "unpicked"}`}
+        style={css}
+      >
+        <button
+          type="button"
+          className={`pick ${on ? "on" : "off"}`}
+          aria-pressed={on}
+          aria-label={`${on ? "Leave out" : "Pick"} ${value}`}
+          title={
+            on ? "Picked: prints for this booking" : "Not picked: left out"
+          }
+          onClick={() => togglePick(i, g, k)}
+        >
+          {on ? "✓" : "✕"}
+        </button>
+        <Text value={value} onChange={(v) => setItem(i, g, k, v)} />
+      </div>
+    );
+  };
   const moveSection = (i: number, step: number) =>
     setMenu((m) => {
       const next = [...m.sections];
@@ -125,7 +204,13 @@ export function FoodMenuCanvas({
         {
           title: "NEW PAGE",
           subtitle: "",
-          groups: [{ heading: "", items: ["NEW ITEM"] }],
+          groups: [
+            {
+              heading: "",
+              items: ["NEW ITEM"],
+              ...(pickable ? { picked: [true] } : {}),
+            },
+          ],
         },
       ],
     }));
@@ -347,6 +432,24 @@ export function FoodMenuCanvas({
               {/* eslint-disable-next-line @next/next/no-img-element -- design background (data URI) */}
               <img className="bottom" src={images.pageBottom} alt="" />
               <div className="tools">
+                {pickable ? (
+                  <>
+                    <button
+                      type="button"
+                      className="tool"
+                      onClick={() => pickAll(i, true)}
+                    >
+                      Pick all
+                    </button>
+                    <button
+                      type="button"
+                      className="tool"
+                      onClick={() => pickAll(i, false)}
+                    >
+                      Clear
+                    </button>
+                  </>
+                ) : null}
                 {i > 0 ? (
                   <button
                     type="button"
@@ -394,16 +497,9 @@ export function FoodMenuCanvas({
                 ) : null}
                 {plain ? (
                   <div className={single ? "items single" : "items"}>
-                    {groups[0].items.map((item, k) => (
-                      <Text
-                        key={k}
-                        as="div"
-                        className="item"
-                        style={itemCss}
-                        value={item}
-                        onChange={(v) => setItem(i, 0, k, v)}
-                      />
-                    ))}
+                    {groups[0].items.map((value, k) =>
+                      item(i, 0, k, value, itemCss),
+                    )}
                     <button
                       type="button"
                       className="add-item"
@@ -427,16 +523,9 @@ export function FoodMenuCanvas({
                             })
                           }
                         />
-                        {group.items.map((item, k) => (
-                          <Text
-                            key={k}
-                            as="div"
-                            className="item"
-                            style={itemCss}
-                            value={item}
-                            onChange={(v) => setItem(i, g, k, v)}
-                          />
-                        ))}
+                        {group.items.map((value, k) =>
+                          item(i, g, k, value, itemCss),
+                        )}
                         <button
                           type="button"
                           className="add-item"

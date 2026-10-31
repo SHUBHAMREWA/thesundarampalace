@@ -1,4 +1,4 @@
-import { connection } from "next/server";
+import { connection, type NextRequest } from "next/server";
 
 import { DOCUMENT_PREVIEW_CSP } from "@/lib/security/headers";
 import { getApiUser } from "@/server/auth/session";
@@ -10,20 +10,23 @@ import {
 import {
   foodMenuHtml,
   foodMenuPdf,
-  getFoodMenu,
+  menuToPrint,
 } from "@/server/services/food-menu";
 
 /**
  * Downloads the food menu as a PDF. Without a PDF renderer (PDF_RENDERER=none)
  * the printable page is returned instead, to save with the browser's Print.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   await connection();
   try {
     const user = await getApiUser();
     if (!user) throw new UnauthenticatedError();
     assertPermission(user, "bookings.read");
-    const menu = await getFoodMenu();
+    const { menu, fileName } = await menuToPrint(
+      user,
+      request.nextUrl.searchParams.get("booking"),
+    );
     const pdf = await foodMenuPdf(menu);
     if (!pdf) {
       return new Response(foodMenuHtml(menu), {
@@ -37,7 +40,7 @@ export async function GET() {
     return new Response(new Uint8Array(pdf), {
       headers: {
         "content-type": "application/pdf",
-        "content-disposition": `attachment; filename="The Sundaram Palace food menu.pdf"`,
+        "content-disposition": `attachment; filename="${fileName}"`,
         "cache-control": "private, no-store",
         "x-content-type-options": "nosniff",
       },

@@ -1,5 +1,5 @@
 import { Download, Files } from "lucide-react";
-import { FOOD_MENU_PDF_URL } from "@/lib/menu/food-menu";
+import { bookingFoodMenuPdfUrl } from "@/lib/menu/food-menu";
 import { SectionTitle } from "@/components/crm/person-avatar";
 
 import { Badge } from "@/components/ui/badge";
@@ -199,11 +199,11 @@ export async function DocumentsTab({
           <div>
             <p className="font-medium">Food menu</p>
             <p className="text-sm text-text-muted">
-              Edited under Food menu in the sidebar.
+              Only the items ticked blue on this booking&apos;s Food menu tab.
             </p>
           </div>
           <Button asChild variant="outline">
-            <a href={FOOD_MENU_PDF_URL}>
+            <a href={bookingFoodMenuPdfUrl(booking.id)}>
               <Download aria-hidden="true" /> Download food menu
             </a>
           </Button>

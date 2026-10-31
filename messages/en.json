@@ -205,5 +205,14 @@
     "close": "Close",
     "previous": "Previous photo",
     "next": "Next photo"
+  },
+  "seo": {
+    "venues": "Banquet halls and lawns at The Sundaram Palace, Rewa, for weddings, receptions and family celebrations.",
+    "gallery": "Photographs of weddings, décor and celebrations at The Sundaram Palace, Rewa.",
+    "catering": "Food and catering for weddings and celebrations at The Sundaram Palace, Rewa.",
+    "decor": "Décor themes for weddings and celebrations at The Sundaram Palace, Rewa.",
+    "services": "Services for weddings and celebrations at The Sundaram Palace, Rewa.",
+    "plan-your-event": "Tell us your date, guests and plans. The Sundaram Palace team will get back to you.",
+    "legal": "Policies and terms of The Sundaram Palace, Rewa."
   }
 }

@@ -229,6 +229,14 @@ describeDb("bookings, holds and conflicts (Phase 3)", () => {
     expect(occ.every((o) => o.state === "CANCELLED")).toBe(true);
     // The slot is free again.
     expect((await checkAvailability(manager(), null, subEvent({ date, hallId: fx.hallB.id }))).conflicts).toHaveLength(0);
+    // Cancelled by mistake: restore it (a reason is required) and the hall is reserved again.
+    await expect(changeBookingStatus(manager(), booking.id, { to: "CONFIRMED", reason: null, overrideReason: null })).rejects.toThrow();
+    await changeBookingStatus(manager(), booking.id, { to: "CONFIRMED", reason: "Cancelled by mistake", overrideReason: null });
+    const restored = await db.booking.findUniqueOrThrow({ where: { id: booking.id } });
+    expect(restored.status).toBe("CONFIRMED");
+    expect(restored.cancelledAt).toBeNull();
+    expect(restored.cancellation).toBeNull();
+    expect((await checkAvailability(manager(), null, subEvent({ date, hallId: fx.hallB.id }))).conflicts.length).toBeGreaterThan(0);
   });
 
   it("operations staff see only bookings with functions assigned to them, and no money", async () => {

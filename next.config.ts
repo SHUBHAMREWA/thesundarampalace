@@ -49,6 +49,15 @@ const nextConfig: NextConfig = {
       // The document preview is framed by the CRM (later rules override earlier ones).
       { source: "/api/documents/preview", headers: documentPreviewHeaders() },
       { source: "/api/food-menu/preview", headers: documentPreviewHeaders() },
+      // Always fetch the newest service worker (PWA).
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self'" },
+        ],
+      },
     ];
   },
 };

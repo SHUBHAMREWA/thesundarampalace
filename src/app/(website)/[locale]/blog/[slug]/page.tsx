@@ -1,12 +1,14 @@
-import { ArrowLeft, Calendar, Clock, User } from "lucide-react";
+import { Calendar, ChevronRight, Clock, User } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Container } from "@/components/layout/container";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BlogCard } from "@/components/website/blog-card";
 import { CmsImage } from "@/components/website/cms-image";
 import { JsonLd } from "@/components/website/json-ld";
+import { ShareButtons } from "@/components/website/share-buttons";
 import { currentLocale } from "@/i18n/current";
 import { Link } from "@/i18n/navigation";
 import { excerpt, readingMinutes } from "@/lib/content/excerpt";
@@ -15,7 +17,8 @@ import { env } from "@/lib/env";
 import { t } from "@/lib/i18n/localized";
 import { cloudinaryImageUrl } from "@/lib/media/cloudinary";
 import { pageMetadata } from "@/lib/seo/metadata";
-import { articleJsonLd } from "@/lib/seo/structured-data";
+import { articleJsonLd, breadcrumbJsonLd } from "@/lib/seo/structured-data";
+import { BLOG_RSS_URL } from "@/lib/seo/metadata";
 import { formatDateKey } from "@/lib/time";
 import { getBlogPost, getPublicContact, listBlogPosts } from "@/server/cms/queries";
 
@@ -38,9 +41,14 @@ export async function generateMetadata({ params }: PageProps<"/[locale]/blog/[sl
     title: t(post.seo.title, locale) || t(post.title, locale),
     description: t(post.seo.description, locale) || t(post.summary, locale) || excerpt(t(post.content, locale)),
     imageUrl: post.cover ? cloudinaryImageUrl(post.cover.publicId, 1200) : undefined,
+    imageAlt: post.cover ? t(post.cover.alt, locale) : undefined,
+    type: "article",
+    // Without its own Hindi text, only the English page is offered to search engines.
+    locales: post.hindi ? undefined : ["en"],
   });
   return {
     ...base,
+    alternates: { ...base.alternates, types: { "application/rss+xml": BLOG_RSS_URL } },
     openGraph: {
       ...base.openGraph,
       type: "article",
@@ -55,20 +63,32 @@ export async function generateMetadata({ params }: PageProps<"/[locale]/blog/[sl
 export default async function BlogPostPage({ params }: PageProps<"/[locale]/blog/[slug]">) {
   const { slug } = await params;
   const locale = await currentLocale();
-  const [post, contact] = await Promise.all([getBlogPost(slug), getPublicContact()]);
+  const [post, contact, all] = await Promise.all([getBlogPost(slug), getPublicContact(), listBlogPosts()]);
   if (!post) notFound();
+  // "More articles": the same category first, then the newest others.
+  const others = all.filter((p) => p.slug !== post.slug);
+  const related = [
+    ...others.filter((p) => p.category.key === post.category.key),
+    ...others.filter((p) => p.category.key !== post.category.key),
+  ].slice(0, 3);
 
   const isHindi = locale === "hi";
   const title = t(post.title, locale);
   const summary = t(post.summary, locale);
   const minutes = readingMinutes(t(post.content, locale));
   const site = env().NEXT_PUBLIC_SITE_URL;
+  const pageUrl = `${site}/${post.hindi ? locale : "en"}/blog/${post.slug}`;
+  const crumbs = [
+    { name: isHindi ? "होम" : "Home", href: "/", url: `${site}/${locale}` },
+    { name: isHindi ? "ब्लॉग" : "Blog", href: "/blog", url: `${site}/${locale}/blog` },
+    { name: title, href: null, url: pageUrl },
+  ];
 
   return (
     <article className="py-16 md:py-24">
       <JsonLd
         data={articleJsonLd({
-          url: `${site}/${locale}/blog/${post.slug}`,
+          url: pageUrl,
           headline: t(post.seo.title, locale) || title,
           description: t(post.seo.description, locale) || summary || excerpt(t(post.content, locale)),
           imageUrl: post.cover ? cloudinaryImageUrl(post.cover.publicId, 1200) : null,
@@ -76,16 +96,30 @@ export default async function BlogPostPage({ params }: PageProps<"/[locale]/blog
           publishedAt: post.publishedAt,
           updatedAt: post.updatedAt,
           publisherName: contact.displayName,
+          publisherLogo: `${site}/icon-512.png`,
           inLanguage: isHindi ? "hi-IN" : "en-IN",
         })}
       />
+      <JsonLd data={breadcrumbJsonLd(crumbs.map(({ name, url }) => ({ name, url })))} />
       <Container className="max-w-3xl">
-        <Button asChild variant="ghost" size="sm" className="mb-6 -ml-2 text-text-muted">
-          <Link href="/blog">
-            <ArrowLeft className="mr-2 size-4" aria-hidden="true" />
-            {isHindi ? "सभी लेख" : "All articles"}
-          </Link>
-        </Button>
+        <nav aria-label={isHindi ? "आप यहाँ हैं" : "Breadcrumb"} className="mb-6 text-sm text-text-muted">
+          <ol className="flex flex-wrap items-center gap-1.5">
+            {crumbs.map((c, i) => (
+              <li key={c.url} className="flex items-center gap-1.5">
+                {i > 0 ? <ChevronRight className="size-3.5" aria-hidden="true" /> : null}
+                {c.href ? (
+                  <Link href={c.href} className="hover:text-primary hover:underline">
+                    {c.name}
+                  </Link>
+                ) : (
+                  <span aria-current="page" className="line-clamp-1 text-text">
+                    {c.name}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
+        </nav>
         <header className="space-y-4">
           <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted">
             <Badge variant="outline">{t(post.category.name, locale)}</Badge>
@@ -122,6 +156,9 @@ export default async function BlogPostPage({ params }: PageProps<"/[locale]/blog
             ))}
           </ul>
         ) : null}
+        <div className="mt-8 border-t border-border pt-6">
+          <ShareButtons url={pageUrl} title={title} locale={locale} />
+        </div>
         <aside className="mt-12 space-y-4 rounded-lg border border-border bg-blush p-8 text-center">
           <h2 className="font-display text-xl">{isHindi ? "अपने उत्सव की योजना बनाएं" : "Planning a celebration?"}</h2>
           <p className="mx-auto max-w-lg text-sm text-text-muted">
@@ -132,6 +169,16 @@ export default async function BlogPostPage({ params }: PageProps<"/[locale]/blog
           </Button>
         </aside>
       </Container>
+      {related.length ? (
+        <Container className="mt-16">
+          <h2 className="mb-6 font-display text-2xl">{isHindi ? "और लेख" : "More articles"}</h2>
+          <ul className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+            {related.map((p) => (
+              <BlogCard key={p.slug} post={p} locale={locale} headingLevel="h3" />
+            ))}
+          </ul>
+        </Container>
+      ) : null}
     </article>
   );
 }

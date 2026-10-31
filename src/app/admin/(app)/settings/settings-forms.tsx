@@ -59,6 +59,13 @@ export function ContactForm({ defaults }: { defaults: SettingsSection<"contact">
         <TextField name="facebookUrl" label="Facebook" defaultValue={defaults.facebookUrl ?? ""} error={e.facebookUrl} />
         <TextField name="youtubeUrl" label="YouTube" defaultValue={defaults.youtubeUrl ?? ""} error={e.youtubeUrl} />
       </div>
+      <TextField
+        name="googleSiteVerification"
+        label="Google Search Console verification"
+        defaultValue={defaults.googleSiteVerification ?? ""}
+        hint="In Search Console choose “HTML tag” and paste the tag or just its content value."
+        error={e.googleSiteVerification}
+      />
       <SubmitButton>Save contact page</SubmitButton>
     </ActionForm>
   );

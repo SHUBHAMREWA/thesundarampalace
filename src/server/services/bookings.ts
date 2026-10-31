@@ -2,7 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import {
   canTransition,
   isFirm,
@@ -859,6 +859,11 @@ export async function changeBookingStatus(
       data.confirmedAt = null;
       data.confirmedById = null;
     }
+  }
+  if (booking.status === "CANCELLED") {
+    // Undo a cancellation made by mistake. Refunds already recorded stay in the ledger.
+    data.cancelledAt = null;
+    data.cancellation = Prisma.DbNull;
   }
   if (to === "CONFIRMED" && !isFirm(booking.status)) {
     if (!booking.acceptedQuotationId && !booking.bookingAmount)

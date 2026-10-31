@@ -3,12 +3,16 @@ import { connection } from "next/server";
 
 import "../globals.css";
 import { fontVariables } from "../fonts";
+import { ServiceWorker } from "@/components/shared/service-worker";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 export const metadata: Metadata = {
   title: { default: "CRM", template: "%s · Sundaram Palace CRM" },
   robots: { index: false, follow: false, nocache: true },
+  // Installable as its own app ("Install app" / "Add to home screen").
+  manifest: "/admin/app.webmanifest",
+  appleWebApp: { capable: true, title: "SP CRM", statusBarStyle: "black-translucent" },
 };
 
 // The CRM is never prerendered: every response carries a fresh CSP nonce
@@ -22,6 +26,7 @@ export default async function AdminRootLayout({ children }: LayoutProps<"/admin"
       <body className="min-h-dvh bg-background">
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster position="top-right" />
+        <ServiceWorker />
       </body>
     </html>
   );

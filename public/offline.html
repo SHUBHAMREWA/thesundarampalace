@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>You're offline · The Sundaram Palace</title>
+    <link rel="icon" href="/icon-192.png" />
+    <style>
+      /* Values of the Rose Mahal tokens in src/app/globals.css (this page loads nothing else). */
+      :root { --deep: #4a1f33; --gold: #c9a96e; --bg: #fbf7f5; --text: #2e2230; --muted: #6b5a66; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, sans-serif; text-align: center; }
+      main { max-width: 26rem; }
+      img { width: 88px; height: 88px; border-radius: 20px; }
+      h1 { font-family: Georgia, serif; font-weight: 600; color: var(--deep); margin: 20px 0 8px; font-size: 1.6rem; }
+      p { color: var(--muted); margin: 0 0 24px; }
+      button { font: 600 15px system-ui, sans-serif; color: #fff; background: var(--deep); border: 0; border-radius: 999px; padding: 12px 28px; cursor: pointer; }
+      .rule { width: 48px; height: 2px; background: var(--gold); margin: 0 auto 16px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icon-192.png" alt="The Sundaram Palace" />
+      <h1>You're offline</h1>
+      <div class="rule"></div>
+      <p>There's no internet connection right now. Check your connection and try again.<br />इंटरनेट कनेक्शन नहीं है। कनेक्शन जाँचकर दोबारा कोशिश करें।</p>
+      <button type="button" onclick="location.reload()">Try again</button>
+    </main>
+  </body>
+</html>

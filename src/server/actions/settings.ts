@@ -13,17 +13,37 @@ import { getSettings, saveSettings } from "@/server/services/settings";
 
 import { checkbox, runAction, text, type ActionState } from "./helpers";
 
-const SECTIONS = ["business", "contact", "enquiry", "numbering", "bookingPolicy", "tax", "documents"] as const;
+const SECTIONS = [
+  "business",
+  "contact",
+  "enquiry",
+  "numbering",
+  "bookingPolicy",
+  "tax",
+  "documents",
+] as const;
 type EditableSection = (typeof SECTIONS)[number];
 
 function phoneOrNull(value: string | undefined, field: string): string | null {
   if (!value?.trim()) return null;
   const normalized = normalizePhone(value);
-  if (!normalized) throw new z.ZodError([{ code: "custom", path: [field], message: "Enter a valid phone number", input: value }]);
+  if (!normalized)
+    throw new z.ZodError([
+      {
+        code: "custom",
+        path: [field],
+        message: "Enter a valid phone number",
+        input: value,
+      },
+    ]);
   return normalized;
 }
 
-function valuesFor(section: EditableSection, form: FormData, current: Record<string, unknown>) {
+function valuesFor(
+  section: EditableSection,
+  form: FormData,
+  current: Record<string, unknown>,
+) {
   const s = (name: string) => text(form, name) ?? "";
   switch (section) {
     case "business":
@@ -48,6 +68,11 @@ function valuesFor(section: EditableSection, form: FormData, current: Record<str
         instagramUrl: s("instagramUrl") || null,
         facebookUrl: s("facebookUrl") || null,
         youtubeUrl: s("youtubeUrl") || null,
+        // Accept the whole <meta …> tag Google shows, or just its content value.
+        googleSiteVerification:
+          (s("googleSiteVerification").match(/content="([^"]+)"/)?.[1] ??
+            s("googleSiteVerification")) ||
+          null,
       };
     case "enquiry":
       return {
@@ -94,16 +119,44 @@ function valuesFor(section: EditableSection, form: FormData, current: Record<str
   }
 }
 
-export async function saveSettingsAction(section: EditableSection, _prev: ActionState, form: FormData): Promise<ActionState> {
+export async function saveSettingsAction(
+  section: EditableSection,
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
   return runAction(async () => {
     const user = await getCurrentUser();
     assertPermission(user, "settings.manage");
-    if (!SECTIONS.includes(section)) throw new Error("Unknown settings section");
+    if (!SECTIONS.includes(section))
+      throw new Error("Unknown settings section");
     const current = (await getSettings(section)) as Record<string, unknown>;
-    const saved = await saveSettings(section, valuesFor(section, form, current), user.id);
-    await recordAudit({ actorId: user.id, action: "settings.saved", entityType: "site_setting", entityId: section, summary: { section } });
-    if (section === "enquiry" && current.consentNoticeVersion !== (saved as Record<string, unknown>).consentNoticeVersion) {
-      await recordAudit({ actorId: user.id, action: "consent.notice_version_changed", entityType: "site_setting", entityId: section, summary: { from: String(current.consentNoticeVersion), to: String((saved as Record<string, unknown>).consentNoticeVersion) } });
+    const saved = await saveSettings(
+      section,
+      valuesFor(section, form, current),
+      user.id,
+    );
+    await recordAudit({
+      actorId: user.id,
+      action: "settings.saved",
+      entityType: "site_setting",
+      entityId: section,
+      summary: { section },
+    });
+    if (
+      section === "enquiry" &&
+      current.consentNoticeVersion !==
+        (saved as Record<string, unknown>).consentNoticeVersion
+    ) {
+      await recordAudit({
+        actorId: user.id,
+        action: "consent.notice_version_changed",
+        entityType: "site_setting",
+        entityId: section,
+        summary: {
+          from: String(current.consentNoticeVersion),
+          to: String((saved as Record<string, unknown>).consentNoticeVersion),
+        },
+      });
     }
     updateTag(CMS_TAG);
     revalidatePath("/admin/settings");

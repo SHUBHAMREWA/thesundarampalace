@@ -141,7 +141,7 @@ export function renderFoodMenuHtml(
   assets: FoodMenuAssets,
 ): string {
   const pages = [
-    rateList(menu),
+    ...(menu.showRateList === false ? [] : [rateList(menu)]),
     ...menu.sections
       .filter((s) => s.title || s.groups.some((g) => g.items.length))
       .map(sectionPage),

@@ -1020,6 +1020,8 @@ model Booking {
   bookingAmount              Decimal?               @db.Decimal(12, 2)
   /// The day the booking was taken (defaults to the day it was entered).
   bookedOn                   DateTime?              @db.Date
+  /// This booking's own copy of the food menu with the items picked for it (null: not made yet).
+  foodMenu                   Json?
   notes                      String?
   internalInstructions       String?
   confirmedAt                DateTime?              @db.Timestamptz(3)

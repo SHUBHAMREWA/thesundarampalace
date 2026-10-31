@@ -10,14 +10,12 @@ import {
   createBooking,
   createBookingSchema,
   menuSelectionSchema,
-  recordActualPlates,
   setMenuSelection,
   subEventSchema,
 } from "@/server/services/bookings";
 import { isExclusionViolation, isImmutableRowError, RuleError } from "@/server/services/errors";
 import {
   adjustmentSchema,
-  billExtraPlates,
   creditNoteSchema,
   depositSchema,
   instalmentSchema,
@@ -256,36 +254,6 @@ describeDb("quotations, ledger, invoices and credit notes (Phase 3)", () => {
     if ("duplicate" in rest) throw new Error("unexpected duplicate");
     expect(partial.grandTotal.plus(rest.grandTotal).toFixed(2)).toBe("100000.00");
     expect((await db.invoice.findUniqueOrThrow({ where: { id: invoice.id } })).status).toBe("FULLY_CREDITED");
-  });
-
-  it("bills extra plates at the agreed rate as a post-event charge, once", async () => {
-    await setBusinessForInvoices(fx.users.super_admin);
-    const customer = await makeCustomer(P);
-    const booking = await createBooking(sales(), createBookingSchema.parse({ customerId: customer.id, mainEventName: "Sample wedding", mainEventTypeKey: "wedding", initialStatus: "TENTATIVE" }));
-    // A function that has already started (yesterday) so plates can be recorded.
-    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-    const { subEvent } = await addSubEvent(sales(), booking.id, subEventSchema.parse({ name: "Wedding", eventTypeKey: "wedding", date: yesterday, hallId: fx.hallA.id, ...fx.morning }));
-    const starters = fx.menu.items.filter((i) => i.course === "starters").map((i) => i.id).slice(0, 2);
-    await setMenuSelection(manager(), subEvent.id, menuSelectionSchema.parse({ menuPackageId: fx.menuPackage.id, itemIds: starters, guaranteedPlates: "200" }));
-    const draft = await createDraft(sales(), booking.id, null);
-    await fillFromBooking(sales(), draft.id);
-    await markSent(sales(), draft.id);
-    await acceptVersion(manager(), draft.id);
-    await changeBookingStatus(manager(), booking.id, { to: "CONFIRMED", reason: null, overrideReason: null });
-    await recordActualPlates(manager(), subEvent.id, 230);
-    const k = key();
-    await billExtraPlates(accounts(), subEvent.id, k);
-    await expect(billExtraPlates(accounts(), subEvent.id, key())).rejects.toThrow(/already billed/);
-    const charge = await db.postEventCharge.findFirstOrThrow({ where: { bookingId: booking.id } });
-    expect(charge.quantity.toString()).toBe("30");
-    expect(charge.unitPrice.toFixed(2)).toBe("850.00");
-    expect(charge.lineTotal.toFixed(2)).toBe("26775.00"); // 25500 + 5%
-    const invoice = await issueInvoice(accounts(), booking.id, invoiceSchema.parse({ idempotencyKey: key(), source: "CHARGES", issuedOn: today() }));
-    if ("duplicate" in invoice) throw new Error("unexpected duplicate");
-    expect(invoice.grandTotal.toFixed(2)).toBe("26775.00");
-    await expect(issueInvoice(accounts(), booking.id, invoiceSchema.parse({ idempotencyKey: key(), source: "CHARGES", issuedOn: today() }))).rejects.toThrow(/no post-event charges/);
-    const summary = await moneySummary(accounts(), booking.id);
-    expect(summary.postEventTotal.toFixed(2)).toBe("26775.00");
   });
 
   it("the database itself refuses overlapping confirmed occupancies", async () => {

@@ -40,7 +40,8 @@ describe("booking state machine", () => {
     expect(canTransition("COMPLETED", "CONFIRMED")).toBe(true);
     expect(canTransition("COMPLETED", "TENTATIVE")).toBe(true);
     expect(canTransition("IN_PROGRESS", "TENTATIVE")).toBe(true);
-    expect(canTransition("CANCELLED", "CONFIRMED")).toBe(false);
+    expect(canTransition("CANCELLED", "CONFIRMED")).toBe(true);
+    expect(canTransition("CANCELLED", "COMPLETED")).toBe(false);
     expect(canTransition("CONFIRMED", "TENTATIVE")).toBe(true);
     expect(canTransition("CONFIRMED", "ENQUIRY_HOLD")).toBe(false);
   });

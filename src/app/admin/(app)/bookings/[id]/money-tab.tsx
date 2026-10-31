@@ -1,4 +1,4 @@
-import { FileText, ReceiptText, Wallet } from "lucide-react";
+import { FileText, Wallet } from "lucide-react";
 import { SectionTitle } from "@/components/crm/person-avatar";
 import Link from "next/link";
 
@@ -25,10 +25,10 @@ import {
   issueCreditNoteAction,
   issueInvoiceAction,
   recordAdjustmentAction,
-  recordChargeAction,
   recordPaymentAction,
   recordRefundAction,
 } from "@/server/actions/money";
+import { DOCUMENT_TYPES } from "@/lib/pdf/fields";
 import type { CurrentUser } from "@/server/auth/session";
 import { can } from "@/server/policies/authorize";
 import type { getBookingDetail } from "@/server/services/bookings";
@@ -37,6 +37,8 @@ import {
   moneySummary,
   PAYMENT_METHODS,
 } from "@/server/services/money";
+
+import { PaymentHistoryActions } from "./payment-history-actions";
 
 type Booking = Awaited<ReturnType<typeof getBookingDetail>>;
 
@@ -94,7 +96,6 @@ export async function MoneyTab({
   const creditable = await Promise.all(
     summary.invoices.map((i) => creditableLines(i.id)),
   );
-  const uninvoicedCharges = summary.charges.filter((c) => !c.invoiced);
   const quotationInvoiced = summary.invoices.some(
     (i) =>
       i.quotationVersionId && i.quotationVersionId === summary.accepted?.id,
@@ -106,7 +107,7 @@ export async function MoneyTab({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Tile
           label="Booking amount"
           value={formatINR(
@@ -119,10 +120,6 @@ export async function MoneyTab({
                 ? "Entered when the booking was made"
                 : "Not entered yet — Overview → Edit details"
           }
-        />
-        <Tile
-          label="Post-event charges"
-          value={formatINR(summary.postEventTotal)}
         />
         <Tile
           label="Received (net)"
@@ -149,19 +146,25 @@ export async function MoneyTab({
         {mismatch ? (
           <span className="text-warning">
             Invoices (net {formatINR(summary.netInvoiced)}) differ from the
-            agreed total plus charges ({formatINR(balance.billable)}) — issue a
+            agreed total ({formatINR(balance.billable)}) — issue a
             credit note or an invoice for the difference.
           </span>
         ) : null}
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
           <CardTitle>
             <SectionTitle icon={Wallet} tone="green">
               Payments and refunds
             </SectionTitle>
           </CardTitle>
+          {summary.ledger.length && can(user, "pdf.financial") ? (
+            <PaymentHistoryActions
+              bookingId={booking.id}
+              fields={DOCUMENT_TYPES.payment_statement.defaults}
+            />
+          ) : null}
         </CardHeader>
         <CardContent className="space-y-6">
           {summary.ledger.length ? (
@@ -398,90 +401,6 @@ export async function MoneyTab({
       <Card>
         <CardHeader>
           <CardTitle>
-            <SectionTitle icon={ReceiptText} tone="amber">
-              Post-event charges
-            </SectionTitle>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {summary.charges.length ? (
-            <ul className="divide-y divide-border text-sm">
-              {summary.charges.map((c) => (
-                <li key={c.id} className="flex justify-between gap-3 py-2">
-                  <span>
-                    {c.description} · {c.quantity.toString()} {c.unit} ×{" "}
-                    {formatINR(c.unitPrice)}
-                    {c.invoiced ? (
-                      <Badge variant="outline" className="ml-2">
-                        invoiced
-                      </Badge>
-                    ) : null}
-                  </span>
-                  <span>{formatINR(c.lineTotal)}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-text-muted">
-              None. Extra plates are billed from the function on the Overview
-              tab.
-            </p>
-          )}
-          {can(user, "payments.create") && firm ? (
-            <details>
-              <summary className="cursor-pointer text-sm font-medium text-primary">
-                Add a charge (extra hours, other)
-              </summary>
-              <div className="mt-3">
-                <ActionPanel
-                  action={recordChargeAction.bind(null, booking.id)}
-                  submitLabel="Add charge"
-                  label="Add a charge"
-                  money
-                  resetAfter
-                >
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <SelectField
-                      name="kind"
-                      label="Type"
-                      options={[
-                        { value: "EXTRA_HOURS", label: "Extra hours" },
-                        { value: "OTHER", label: "Other" },
-                      ]}
-                    />
-                    <SelectField
-                      name="subEventId"
-                      label="Function"
-                      options={booking.subEvents.map((s) => ({
-                        value: s.id,
-                        label: s.name,
-                      }))}
-                      placeholder="Whole booking"
-                    />
-                    <TextField name="description" label="Description" />
-                    <TextField name="unit" label="Unit" defaultValue="hour" />
-                    <TextField
-                      name="quantity"
-                      label="Quantity"
-                      defaultValue="1"
-                      inputMode="decimal"
-                    />
-                    <TextField
-                      name="unitPrice"
-                      label="Unit price (₹)"
-                      inputMode="decimal"
-                    />
-                  </div>
-                </ActionPanel>
-              </div>
-            </details>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>
             <SectionTitle icon={FileText} tone="rose">
               Invoices and credit notes
             </SectionTitle>
@@ -648,28 +567,6 @@ export async function MoneyTab({
                       name="notes"
                       label="Notes (optional; defaults from Settings)"
                       rows={2}
-                    />
-                  </ActionPanel>
-                </div>
-              ) : null}
-              {uninvoicedCharges.length ? (
-                <div>
-                  <h3 className="mb-2 text-sm font-semibold">
-                    Invoice post-event charges ({uninvoicedCharges.length})
-                  </h3>
-                  <ActionPanel
-                    action={issueInvoiceAction.bind(null, booking.id)}
-                    submitLabel="Issue invoice for charges"
-                    label="Invoice post-event charges"
-                    money
-                  >
-                    <input type="hidden" name="source" value="CHARGES" />
-                    <TextField
-                      name="issuedOn"
-                      label="Invoice date"
-                      type="date"
-                      defaultValue={today}
-                      max={today}
                     />
                   </ActionPanel>
                 </div>

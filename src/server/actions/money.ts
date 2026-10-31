@@ -4,15 +4,12 @@ import { revalidatePath } from "next/cache";
 
 import {
   adjustmentSchema,
-  billExtraPlates,
-  chargeSchema,
   creditNoteSchema,
   invoiceSchema,
   issueCreditNote,
   issueInvoice,
   paymentSchema,
   recordAdjustment,
-  recordCharge,
   recordPayment,
   recordRefund,
   refundSchema,
@@ -22,7 +19,6 @@ import {
   currentActor,
   formObject,
   runAction,
-  text,
   type ActionState,
 } from "./helpers";
 
@@ -83,39 +79,6 @@ export async function recordAdjustmentAction(
     );
     refresh(bookingId);
     return done(result, "Adjustment recorded.");
-  });
-}
-
-export async function recordChargeAction(
-  bookingId: string,
-  _prev: ActionState,
-  form: FormData,
-): Promise<ActionState> {
-  return runAction(async () => {
-    const result = await recordCharge(
-      await currentActor(),
-      bookingId,
-      chargeSchema.parse(formObject(form)),
-    );
-    refresh(bookingId);
-    return done(result, "Charge recorded.");
-  });
-}
-
-export async function billExtraPlatesAction(
-  bookingId: string,
-  subEventId: string,
-  _prev: ActionState,
-  form: FormData,
-): Promise<ActionState> {
-  return runAction(async () => {
-    const result = await billExtraPlates(
-      await currentActor(),
-      subEventId,
-      text(form, "idempotencyKey") ?? "",
-    );
-    refresh(bookingId);
-    return done(result, "Extra plates added as a post-event charge.");
   });
 }
 

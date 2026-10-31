@@ -63,7 +63,6 @@ import {
   updateSubEventAction,
   uploadPartyDocumentAction,
 } from "@/server/actions/bookings";
-import { billExtraPlatesAction } from "@/server/actions/money";
 import type { CurrentUser } from "@/server/auth/session";
 import { can } from "@/server/policies/authorize";
 import {
@@ -110,6 +109,9 @@ const STATUS_NAME: Record<string, string> = {
   COMPLETED: "Completed",
   CANCELLED: "Cancelled",
 };
+
+/** Button label for undoing a cancellation made by mistake. */
+const RESTORE_ACTION = "Restore booking (mark as booked)";
 
 /** Button labels for moving a firm booking back (undoing a status set by mistake). */
 const STEP_BACK_ACTION: Record<string, string> = {
@@ -519,22 +521,6 @@ export async function Overview({
                         />
                       </ActionPanel>
                     ) : null}
-                    {diff?.extra && can(user, "payments.create") ? (
-                      <ActionPanel
-                        action={billExtraPlatesAction.bind(
-                          null,
-                          booking.id,
-                          s.id,
-                        )}
-                        submitLabel={`Bill ${diff.extra} extra plates`}
-                        money
-                        className="flex items-end gap-2"
-                      >
-                        <span className="sr-only">
-                          Adds a post-event charge at the agreed per-plate rate.
-                        </span>
-                      </ActionPanel>
-                    ) : null}
                     {editable ? (
                       <ConfirmAction
                         action={removeSubEventAction.bind(
@@ -914,13 +900,17 @@ export async function Overview({
                     key={to}
                     action={changeStatusAction.bind(null, booking.id)}
                     label={
-                      isStepBack(status, to)
-                        ? STEP_BACK_ACTION[to]
-                        : STATUS_ACTION[to]
+                      status === "CANCELLED"
+                        ? RESTORE_ACTION
+                        : isStepBack(status, to)
+                          ? STEP_BACK_ACTION[to]
+                          : STATUS_ACTION[to]
                     }
-                    title={`${isStepBack(status, to) ? STEP_BACK_ACTION[to] : STATUS_ACTION[to]}?`}
+                    title={`${status === "CANCELLED" ? RESTORE_ACTION : isStepBack(status, to) ? STEP_BACK_ACTION[to] : STATUS_ACTION[to]}?`}
                     description={
-                      isStepBack(status, to)
+                      status === "CANCELLED"
+                        ? "Use this if the booking was cancelled by mistake. It becomes Booked again and its halls are reserved again; if another booking now has the same hall and time you'll be told. Refunds already recorded stay on record."
+                        : isStepBack(status, to)
                         ? to === "TENTATIVE"
                           ? "The booking goes back to booked (not confirmed) and its halls are no longer firmly booked (other bookings will only see a warning). Payments stay on record. After this it can be cancelled, or deleted once any money received is refunded (balance ₹0)."
                           : "The booking goes back to confirmed. Payments and documents stay as they are."
@@ -934,7 +924,8 @@ export async function Overview({
                     }
                     reasonRequired={isStepBack(status, to)}
                     triggerVariant={
-                      to === "CONFIRMED" && !isStepBack(status, to)
+                      to === "CONFIRMED" &&
+                      (status === "CANCELLED" || !isStepBack(status, to))
                         ? "default"
                         : "outline"
                     }

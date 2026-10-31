@@ -18,8 +18,10 @@ import {
   deleteBookingAction,
 } from "@/server/actions/bookings";
 import { requirePermission } from "@/server/auth/session";
+import type { CurrentUser } from "@/server/auth/session";
 import { can } from "@/server/policies/authorize";
 import { activityTimeline } from "@/server/services/activity";
+import { getBookingFoodMenu, menuImages } from "@/server/services/food-menu";
 import {
   bookingDeleteBlocker,
   getBookingDetail,
@@ -27,6 +29,7 @@ import {
 import { NotFoundError } from "@/server/services/leads";
 import { lookupOptions } from "@/server/services/lookups";
 
+import { BookingFoodMenu } from "./booking-food-menu";
 import { DocumentsTab } from "./documents-tab";
 import { MoneyTab } from "./money-tab";
 import { Overview } from "./overview";
@@ -76,6 +79,7 @@ export default async function BookingPage({
         can(user, "pdf.menu"),
     },
     { key: "activity", label: "Activity", show: true },
+    { key: "food-menu", label: "Food menu", show: true },
   ].filter((t) => t.show);
   const tab = tabs.find((t) => t.key === one(query.tab))?.key ?? "overview";
   const statusLabels = await lookupOptions("booking_status");
@@ -202,6 +206,9 @@ export default async function BookingPage({
           initialSource={one(query.source) ?? null}
         />
       ) : null}
+      {tab === "food-menu" ? (
+        <BookingFoodMenuTab bookingId={booking.id} user={user} />
+      ) : null}
       {tab === "activity" ? (
         <Card>
           <CardHeader>
@@ -217,5 +224,30 @@ export default async function BookingPage({
         </Card>
       ) : null}
     </>
+  );
+}
+
+/** This booking's own food menu (a copy of the venue menu with the items picked for it). */
+async function BookingFoodMenuTab({
+  bookingId,
+  user,
+}: {
+  bookingId: string;
+  user: CurrentUser;
+}) {
+  const { menu, saved } = await getBookingFoodMenu(user, bookingId);
+  // Changes whenever the saved menu changes, so the editor and preview reload.
+  let hash = 0;
+  for (const ch of JSON.stringify(menu)) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+  const version = saved ? (hash >>> 0).toString(36) : "new";
+  return (
+    <BookingFoodMenu
+      key={version}
+      bookingId={bookingId}
+      initial={menu}
+      saved={saved}
+      images={menuImages()}
+      canEdit={can(user, "bookings.edit")}
+    />
   );
 }

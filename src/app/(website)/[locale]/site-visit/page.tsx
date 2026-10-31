@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/metadata";
 import { currentLocale } from "@/i18n/current";
 
 import { Container } from "@/components/layout/container";
@@ -7,10 +8,14 @@ import { SiteVisitForm } from "@/components/website/site-visit-form";
 import { t } from "@/lib/i18n/localized";
 import { listHalls } from "@/server/cms/queries";
 
-export const metadata: Metadata = {
-  title: "Book a Site Visit",
-  description: "Schedule an in-person guided tour of our grand banquet halls and luxury venue spaces.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata({
+    locale: await currentLocale(),
+    path: "/site-visit",
+    title: "Book a Site Visit",
+    description: "Schedule an in-person guided tour of our grand banquet halls and luxury venue spaces.",
+  });
+}
 
 export default async function SiteVisitPage() {
   const locale = await currentLocale();

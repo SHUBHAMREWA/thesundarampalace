@@ -3,13 +3,12 @@ import "server-only";
 import { z } from "zod";
 
 import type { Prisma } from "@/generated/prisma/client";
-import { isFirm, plateDifference } from "@/lib/booking/rules";
+import { isFirm } from "@/lib/booking/rules";
 import { db } from "@/lib/db";
 import {
   allocateToInstalments,
   amountInWordsINR,
   bookingBalance,
-  computeQuote,
   creditForTaxable,
   depositTotals,
   formatINR,
@@ -23,15 +22,13 @@ import {
   idempotencyKeySchema,
   optionalText,
   positiveMoneyString,
-  quantityString,
   requiredText,
-  moneyString,
 } from "@/lib/validation/forms";
 import { assertPermission, can, type Actor } from "@/server/policies/authorize";
 
 import { recordActivity } from "./activity";
 import { recordAudit } from "./audit";
-import { bookingVisibility, type MenuSnapshot } from "./bookings";
+import { bookingVisibility } from "./bookings";
 import { fieldError, isUniqueViolation, RuleError } from "./errors";
 import { NotFoundError } from "./leads";
 import { notifyStaff } from "./notifications";
@@ -338,91 +335,6 @@ export async function recordDepositEntry(actor: Actor, bookingId: string, input:
   );
 }
 
-// ─── Post-event charges ──────────────────────────────────────────────────────
-
-export const chargeSchema = z.object({
-  idempotencyKey: idempotencyKeySchema,
-  kind: z.enum(["EXTRA_HOURS", "OTHER"]),
-  subEventId: optionalText(50),
-  description: requiredText("Description", 300),
-  unit: requiredText("Unit", 40),
-  quantity: quantityString,
-  unitPrice: moneyString("the unit price"),
-});
-
-async function createCharge(
-  tx: Prisma.TransactionClient,
-  actor: Actor,
-  booking: { id: string; reference: string },
-  data: { kind: "EXTRA_PLATES" | "EXTRA_HOURS" | "OTHER"; subEventId: string | null; description: string; unit: string; quantity: string; unitPrice: string; idempotencyKey: string },
-) {
-  // No GST (owner decision, 26 Oct 2026): tax columns keep neutral values.
-  const result = computeQuote([{ quantity: data.quantity, unitPrice: data.unitPrice, taxRatePercent: "0" }], { pricesIncludeTax: false, supplyType: "INTRA" });
-  const line = result.lines[0];
-  const charge = await tx.postEventCharge.create({
-    data: {
-      bookingId: booking.id,
-      subEventId: data.subEventId,
-      kind: data.kind,
-      description: data.description,
-      sacCode: "",
-      unit: data.unit,
-      quantity: data.quantity,
-      unitPrice: data.unitPrice,
-      taxRatePercent: "0",
-      pricesIncludeTax: false,
-      supplyType: "INTRA",
-      taxableValue: line.taxableValue.toFixed(2),
-      cgst: line.cgst.toFixed(2),
-      sgst: line.sgst.toFixed(2),
-      igst: line.igst.toFixed(2),
-      lineTotal: line.lineTotal.toFixed(2),
-      recordedById: actor.id,
-      idempotencyKey: data.idempotencyKey,
-    },
-  });
-  await recordActivity({ entityType: "booking", entityId: booking.id, actorId: actor.id, kind: "CHARGE", message: `Post-event charge: ${data.description} ${formatINR(line.lineTotal)}` }, tx);
-  await recordAudit({ actorId: actor.id, action: "charge.recorded", entityType: "post_event_charge", entityId: charge.id, summary: { booking: booking.reference, total: line.lineTotal.toFixed(2) } }, tx);
-  return charge;
-}
-
-export async function recordCharge(actor: Actor, bookingId: string, input: z.infer<typeof chargeSchema>) {
-  assertPermission(actor, "payments.create");
-  const booking = await requireBookingForMoney(actor, bookingId);
-  if (!isFirm(booking.status)) throw new RuleError("Post-event charges apply to confirmed bookings.");
-  if (input.subEventId && !(await db.bookingSubEvent.findFirst({ where: { id: input.subEventId, bookingId } }))) fieldError("subEventId", "Choose one of this booking's functions");
-  return onceOnly(() => db.$transaction((tx) => createCharge(tx, actor, booking, { ...input, subEventId: input.subEventId })));
-}
-
-/** Bills plates served beyond the guarantee at the agreed per-plate rate (from the menu snapshot). */
-export async function billExtraPlates(actor: Actor, subEventId: string, idempotencyKey: string) {
-  assertPermission(actor, "payments.create");
-  idempotencyKeySchema.parse(idempotencyKey);
-  const subEvent = await db.bookingSubEvent.findUnique({ where: { id: subEventId }, include: { menuSelection: true, postEventCharges: { where: { kind: "EXTRA_PLATES" } } } });
-  if (!subEvent?.menuSelection || subEvent.menuSelection.actualPlates === null) throw new RuleError("Record the plates actually served first.");
-  const booking = await requireBookingForMoney(actor, subEvent.bookingId);
-  if (subEvent.postEventCharges.length) throw new RuleError("Extra plates for this function are already billed.");
-  const { extra } = plateDifference(subEvent.menuSelection.guaranteedPlates, subEvent.menuSelection.actualPlates);
-  if (extra <= 0) throw new RuleError("No plates were served beyond the guarantee.");
-  const snap = subEvent.menuSelection.snapshot as unknown as MenuSnapshot;
-  const accepted = booking.acceptedQuotationId ? await db.quotationVersion.findUnique({ where: { id: booking.acceptedQuotationId }, include: { lines: { where: { kind: "PLATES", subEventId } } } }) : null;
-  // The agreed rate: the accepted quotation's plate line if there is one, else the menu snapshot.
-  const rate = accepted?.lines[0]?.unitPrice.toFixed(2) ?? snap.perPlateRate;
-  return onceOnly(() =>
-    db.$transaction((tx) =>
-      createCharge(tx, actor, booking, {
-        kind: "EXTRA_PLATES",
-        subEventId,
-        description: `Extra plates — ${subEvent.name} (${extra} beyond ${subEvent.menuSelection!.guaranteedPlates} guaranteed)`,
-        unit: "plate",
-        quantity: String(extra),
-        unitPrice: rate,
-        idempotencyKey,
-      }),
-    ),
-  );
-}
-
 // ─── Invoices (no GST) ───────────────────────────────────────────────────────
 
 /** `gstin`, `stateCode` and `stateName` only appear on invoices issued before GST was removed. */
@@ -440,14 +352,13 @@ async function supplierSnapshot(): Promise<SupplierSnapshot> {
 
 export const invoiceSchema = z.object({
   idempotencyKey: idempotencyKeySchema,
-  source: z.enum(["QUOTATION", "CHARGES"]),
+  source: z.literal("QUOTATION"),
   issuedOn: dateKeySchema,
   notes: optionalText(1000),
 });
 
 /**
- * Issues an invoice (no GST) — from the accepted quotation (once), or for the
- * post-event charges not yet invoiced. Values are copied exactly from those
+ * Issues an invoice (no GST) from the accepted quotation (once). Values are copied exactly from those
  * records; the number is allocated in the same transaction (gap-free).
  */
 export async function issueInvoice(actor: Actor, bookingId: string, input: z.infer<typeof invoiceSchema>) {
@@ -465,10 +376,10 @@ export async function issueInvoice(actor: Actor, bookingId: string, input: z.inf
   let quotationVersionId: string | null = null;
   let roundOff = roundMoney(0);
 
-  if (input.source === "QUOTATION") {
+  {
     if (!booking.acceptedQuotationId) throw new RuleError("There is no accepted quotation to invoice.");
     const already = await db.invoice.findFirst({ where: { bookingId, quotationVersionId: booking.acceptedQuotationId } });
-    if (already) throw new RuleError(`The accepted quotation is already invoiced (${already.number}). Use a credit note for reductions, or invoice post-event charges.`);
+    if (already) throw new RuleError(`The accepted quotation is already invoiced (${already.number}). Use a credit note for reductions.`);
     const version = await db.quotationVersion.findUniqueOrThrow({ where: { id: booking.acceptedQuotationId }, include: { lines: { orderBy: { sortOrder: "asc" } } } });
     quotationVersionId = version.id;
     roundOff = roundMoney(version.roundOff);
@@ -487,25 +398,6 @@ export async function issueInvoice(actor: Actor, bookingId: string, input: z.inf
       igst: l.igst,
       lineTotal: l.lineTotal,
       quotationLineId: l.id,
-    }));
-  } else {
-    const charges = await db.postEventCharge.findMany({ where: { bookingId, invoiceLines: { none: {} } }, orderBy: { createdAt: "asc" } });
-    if (!charges.length) throw new RuleError("There are no post-event charges waiting to be invoiced.");
-    lines = charges.map((c, i) => ({
-      sortOrder: (i + 1) * 10,
-      description: c.description,
-      sacCode: c.sacCode,
-      unit: c.unit,
-      quantity: c.quantity,
-      unitPrice: c.unitPrice,
-      discount: "0",
-      taxableValue: c.taxableValue,
-      ratePercent: c.taxRatePercent,
-      cgst: c.cgst,
-      sgst: c.sgst,
-      igst: c.igst,
-      lineTotal: c.lineTotal,
-      postEventChargeId: c.id,
     }));
   }
   const recipientAddress = [booking.customer.address, booking.customer.locality, booking.customer.city].filter(Boolean).join(", ") || null;

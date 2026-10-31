@@ -477,6 +477,8 @@ export type BlogPostSummaryView = {
   /** Publication day in India ("YYYY-MM-DD"), for display without reading the clock. */
   publishedOn: string | null;
   updatedAt: string;
+  /** Has its own Hindi title and article (otherwise only the English page is offered to search engines). */
+  hindi: boolean;
 };
 
 export type BlogPostView = BlogPostSummaryView & {
@@ -505,6 +507,9 @@ function blogSummary(
     publishedAt: row.publishedAt?.toISOString() ?? null,
     publishedOn: row.publishedAt ? istDateKey(row.publishedAt) : null,
     updatedAt: row.updatedAt.toISOString(),
+    hindi:
+      !!(row.title as Localized).hi?.trim() &&
+      !!(row.content as Localized | null)?.hi?.trim(),
   };
 }
 

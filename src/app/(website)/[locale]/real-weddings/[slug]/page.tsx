@@ -8,14 +8,20 @@ import { Container } from "@/components/layout/container";
 import { Button } from "@/components/ui/button";
 import { RichText } from "@/lib/content/rich-text";
 import { t } from "@/lib/i18n/localized";
+import { pageMetadata } from "@/lib/seo/metadata";
 import { dateKey, formatDateKey } from "@/lib/time";
-import { getPublicRealWedding, listPublicRealWeddings } from "@/server/services/real-weddings";
+import {
+  getPublicRealWedding,
+  listPublicRealWeddings,
+} from "@/server/services/real-weddings";
 
 const NO_STORIES_YET = "coming-soon";
 
 export async function generateStaticParams() {
   const stories = await listPublicRealWeddings().catch(() => []);
-  return stories.length ? stories.map((s) => ({ slug: s.slug })) : [{ slug: NO_STORIES_YET }];
+  return stories.length
+    ? stories.map((s) => ({ slug: s.slug }))
+    : [{ slug: NO_STORIES_YET }];
 }
 
 export async function generateMetadata({
@@ -24,17 +30,24 @@ export async function generateMetadata({
   params: Promise<{ locale: string; slug: string }>;
 }): Promise<Metadata> {
   const { slug, locale } = await params;
-  if (slug === NO_STORIES_YET) return { title: "Real Weddings | The Sundaram Palace" };
+  if (slug === NO_STORIES_YET)
+    return { title: "Real weddings", robots: { index: false, follow: true } };
   const wedding = await getPublicRealWedding(slug);
   if (!wedding) return { title: "Story Not Found" };
 
   const loc = locale === "hi" ? "hi" : "en";
   const names = t(wedding.coupleName, loc) || "Wedding Celebration";
 
-  return {
-    title: `${names} | The Sundaram Palace Weddings`,
-    description: t(wedding.summary, loc) || `Celebration of ${names} at The Sundaram Palace.`,
-  };
+  return pageMetadata({
+    locale: loc,
+    path: `/real-weddings/${slug}`,
+    title: names,
+    description:
+      t(wedding.summary, loc) ||
+      `Celebration of ${names} at The Sundaram Palace.`,
+    imageUrl: wedding.coverImageUrl || undefined,
+    type: "article",
+  });
 }
 
 export default async function RealWeddingStoryPage({
@@ -48,8 +61,12 @@ export default async function RealWeddingStoryPage({
   if (slug === NO_STORIES_YET) {
     return (
       <Container className="py-24 text-center">
-        <h1 className="text-3xl font-serif text-primary">Celebration Stories Coming Soon</h1>
-        <p className="mt-3 text-text-muted">Real couple wedding stories and celebrations will appear here soon.</p>
+        <h1 className="text-3xl font-serif text-primary">
+          Celebration Stories Coming Soon
+        </h1>
+        <p className="mt-3 text-text-muted">
+          Real couple wedding stories and celebrations will appear here soon.
+        </p>
         <div className="mt-8">
           <Button asChild variant="outline">
             <Link href={`/${locale}/real-weddings`}>Back to Real Weddings</Link>
@@ -73,16 +90,25 @@ export default async function RealWeddingStoryPage({
     <article className="py-16 md:py-24">
       <Container className="max-w-3xl">
         <div className="mb-8">
-          <Button asChild variant="ghost" size="sm" className="mb-6 -ml-2 text-text-muted hover:text-foreground">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="mb-6 -ml-2 text-text-muted hover:text-foreground"
+          >
             <Link href={`/${locale}/real-weddings`}>
               <ArrowLeft className="size-4 mr-2" />
-              {isHindi ? "सभी विवाह गाथाओं पर वापस जाएं" : "Back to all wedding stories"}
+              {isHindi
+                ? "सभी विवाह गाथाओं पर वापस जाएं"
+                : "Back to all wedding stories"}
             </Link>
           </Button>
 
           <p className="text-xs font-semibold tracking-wider uppercase text-primary flex items-center gap-1.5 mb-2">
             <Heart className="size-3.5 fill-primary/30" />
-            {wedding.eventDate ? formatDateKey(dateKey(wedding.eventDate), "MMMM yyyy") : "Celebration"}
+            {wedding.eventDate
+              ? formatDateKey(dateKey(wedding.eventDate), "MMMM yyyy")
+              : "Celebration"}
           </p>
 
           <h1 className="text-3xl font-serif font-bold tracking-tight text-foreground sm:text-4xl">
@@ -119,7 +145,9 @@ export default async function RealWeddingStoryPage({
 
         <div className="mt-12 rounded-xl border border-border bg-blush/30 p-8 text-center space-y-4">
           <h3 className="text-xl font-serif font-semibold text-foreground">
-            {isHindi ? "अपने विवाह को भी बनाएं ऐतिहासिक" : "Create Your Own Royal Celebration"}
+            {isHindi
+              ? "अपने विवाह को भी बनाएं ऐतिहासिक"
+              : "Create Your Own Royal Celebration"}
           </h3>
           <p className="text-sm text-text-muted max-w-lg mx-auto">
             {isHindi
@@ -134,7 +162,9 @@ export default async function RealWeddingStoryPage({
             </Button>
             <Button asChild variant="outline">
               <Link href={`/${locale}/check-date`}>
-                {isHindi ? "तारीख की उपलब्धता जांचें" : "Check Date Availability"}
+                {isHindi
+                  ? "तारीख की उपलब्धता जांचें"
+                  : "Check Date Availability"}
               </Link>
             </Button>
           </div>

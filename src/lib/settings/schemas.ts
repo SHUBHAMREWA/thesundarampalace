@@ -18,9 +18,14 @@ const nullableUrl = z
   .transform((v) => (v ? v : null));
 
 const localizedNullable = z
-  .object({ en: z.string().trim().max(4000), hi: z.string().trim().max(4000).optional() })
+  .object({
+    en: z.string().trim().max(4000),
+    hi: z.string().trim().max(4000).optional(),
+  })
   .nullable()
-  .transform((v) => (v && (v.en || v.hi) ? { en: v.en, ...(v.hi ? { hi: v.hi } : {}) } : null));
+  .transform((v) =>
+    v && (v.en || v.hi) ? { en: v.en, ...(v.hi ? { hi: v.hi } : {}) } : null,
+  );
 
 export const businessSettingsSchema = z.object({
   displayName: z.string().trim().min(1).max(120),
@@ -48,6 +53,8 @@ export const contactSettingsSchema = z.object({
   instagramUrl: nullableUrl,
   facebookUrl: nullableUrl,
   youtubeUrl: nullableUrl,
+  /** Google Search Console HTML-tag verification code (the content="…" value). */
+  googleSiteVerification: nullableText,
 });
 
 const referencePrefix = z
@@ -100,7 +107,11 @@ const percent = z
  */
 export const bookingPolicySettingsSchema = z.object({
   /** Tentative hold duration in hours (default 72; confirm with business). */
-  holdDurationHours: z.number().int().min(1).max(24 * 30),
+  holdDurationHours: z
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 30),
   holdReminderHoursBefore: z.number().int().min(0).max(72),
   /** Guaranteed plates lock this many days before each function. */
   guestCountLockDays: z.number().int().min(0).max(90),
@@ -150,9 +161,13 @@ export const SETTINGS_SECTIONS = {
 } as const;
 
 export type SettingsSectionKey = keyof typeof SETTINGS_SECTIONS;
-export type SettingsSection<K extends SettingsSectionKey> = z.infer<(typeof SETTINGS_SECTIONS)[K]>;
+export type SettingsSection<K extends SettingsSectionKey> = z.infer<
+  (typeof SETTINGS_SECTIONS)[K]
+>;
 
-export const DEFAULT_SETTINGS: { [K in SettingsSectionKey]: SettingsSection<K> } = {
+export const DEFAULT_SETTINGS: {
+  [K in SettingsSectionKey]: SettingsSection<K>;
+} = {
   business: {
     displayName: "The Sundaram Palace",
     legalName: null,
@@ -173,6 +188,7 @@ export const DEFAULT_SETTINGS: { [K in SettingsSectionKey]: SettingsSection<K> }
     googleReviewsUrl: null,
     instagramUrl: null,
     facebookUrl: null,
+    googleSiteVerification: null,
     youtubeUrl: null,
   },
   numbering: {

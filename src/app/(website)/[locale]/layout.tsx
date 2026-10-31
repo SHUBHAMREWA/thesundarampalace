@@ -9,11 +9,13 @@ import { FloatingActions } from "@/components/website/floating-actions";
 import { SiteFooter } from "@/components/website/site-footer";
 import { SiteHeader } from "@/components/website/site-header";
 import { UtmCapture } from "@/components/website/utm-capture";
+import { ServiceWorker } from "@/components/shared/service-worker";
 import { routing } from "@/i18n/routing";
 import { whatsappLink } from "@/lib/contact/links";
 import { directionsUrl } from "@/lib/contact/map";
 import { env } from "@/lib/env";
 import { t } from "@/lib/i18n/localized";
+import { DEFAULT_OG_IMAGE, SITE_NAME } from "@/lib/seo/metadata";
 import { getPublicContact } from "@/server/cms/queries";
 
 export function generateStaticParams() {
@@ -21,11 +23,20 @@ export function generateStaticParams() {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const tr = await getTranslations("home");
+  const [tr, contact] = await Promise.all([getTranslations("home"), getPublicContact()]);
+  const verification = contact.contact.googleSiteVerification;
   return {
     metadataBase: new URL(env().NEXT_PUBLIC_SITE_URL),
-    title: { default: tr("metaTitle"), template: "%s · The Sundaram Palace" },
+    title: { default: tr("metaTitle"), template: `%s · ${SITE_NAME}` },
     description: tr("metaDescription"),
+    applicationName: SITE_NAME,
+    // Installable as an app ("Add to home screen").
+    manifest: "/site.webmanifest",
+    appleWebApp: { capable: true, title: "Sundaram Palace", statusBarStyle: "black-translucent" },
+    // Defaults for any page that sets no share image of its own.
+    openGraph: { siteName: SITE_NAME, type: "website", images: [DEFAULT_OG_IMAGE] },
+    twitter: { card: "summary_large_image", images: [DEFAULT_OG_IMAGE.url] },
+    ...(verification ? { verification: { google: verification } } : {}),
   };
 }
 
@@ -48,6 +59,7 @@ export default async function WebsiteLayout({ children }: LayoutProps<"/[locale]
         </a>
         <NextIntlClientProvider>
           <UtmCapture />
+          <ServiceWorker />
           <SiteHeader />
           <main id="main" className="flex-1">
             {children}

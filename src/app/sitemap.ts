@@ -14,6 +14,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     listBlogPosts(),
   ]);
   const lastModified = new Map(posts.map((p) => [`/blog/${p.slug}`, p.updatedAt]));
+  // Posts without their own Hindi text are listed in English only.
+  const englishOnly = new Set(posts.filter((p) => !p.hindi).map((p) => `/blog/${p.slug}`));
   const publishedStandard = new Set(standard.map((p) => p.slug));
   const paths = [
     ...STANDARD_PAGES.filter((p) => p.slug === "home" || publishedStandard.has(p.slug)).map((p) => p.path),
@@ -25,13 +27,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...posts.map((p) => `/blog/${p.slug}`),
   ];
   const url = (locale: string, path: string) => `${site}/${locale}${path === "/" ? "" : path}`;
-  return paths.flatMap((path) =>
-    routing.locales.map((locale) => ({
+  return paths.flatMap((path) => {
+    const locales = englishOnly.has(path) ? ["en"] : routing.locales;
+    return locales.map((locale) => ({
       url: url(locale, path),
-      alternates: { languages: Object.fromEntries(routing.locales.map((l) => [l, url(l, path)])) },
+      alternates: { languages: Object.fromEntries(locales.map((l) => [l, url(l, path)])) },
       ...(lastModified.has(path) ? { lastModified: lastModified.get(path) } : {}),
       changeFrequency: path.startsWith("/blog/") ? ("monthly" as const) : ("weekly" as const),
       priority: path === "/" ? 1 : path.startsWith("/legal") ? 0.2 : 0.7,
-    })),
-  );
+    }));
+  });
 }
