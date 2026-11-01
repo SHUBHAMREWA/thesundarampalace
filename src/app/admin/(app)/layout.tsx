@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { MobileNav } from "@/components/crm/mobile-nav";
+import { StaffAlertListener } from "@/components/crm/staff-alert-listener";
 import { visibleNav } from "@/components/crm/nav";
 import { SidebarNav } from "@/components/crm/sidebar-nav";
 import { UserMenu } from "@/components/crm/user-menu";
@@ -54,6 +55,7 @@ export default async function CrmLayout({ children }: { children: ReactNode }) {
             <UserMenu name={user.name} email={user.email} />
           </div>
         </header>
+        <StaffAlertListener />
         <main id="main" className="flex-1 px-4 py-6 md:px-8">
           {children}
         </main>

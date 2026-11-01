@@ -25,6 +25,9 @@ const schema = z
     PDF_RENDERER: z.enum(["local", "service", "none"]).optional(),
     PDF_SERVICE_URL: z.url().optional().or(z.literal("")),
     PDF_SERVICE_SECRET: z.string().optional(),
+    // Web Push (staff notifications on phones and laptops). Optional: without them push is off.
+    NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().optional(),
+    VAPID_PRIVATE_KEY: z.string().optional(),
   })
   .superRefine((env, ctx) => {
     if (env.PDF_RENDERER === "service" && (!env.PDF_SERVICE_URL || (env.PDF_SERVICE_SECRET ?? "").length < 32)) {

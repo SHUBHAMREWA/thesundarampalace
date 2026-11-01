@@ -1,15 +1,19 @@
 import "server-only";
 
+import { after } from "next/server";
+
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 
 import { sendEmail } from "./email";
+import { pushConfigured, pushToUsers } from "./push";
 
 type Tx = Pick<PrismaClient, "notification" | "outbox" | "user">;
 
 /**
  * Staff notifications (docs/architecture.md ADR-10): an in-app notification
- * always, plus an outbox email that is delivered after the transaction.
+ * always, a Web Push to their phones/laptops once the response is sent, plus
+ * an outbox email that is delivered after the transaction.
  * Staff alerts are operational messages, not marketing, so no customer
  * consent applies; customer messages will check ConsentRecord (Phase 5).
  */
@@ -36,6 +40,7 @@ export async function notifyStaff(
       link: input.link ?? null,
     })),
   });
+  if (pushConfigured()) schedulePush(userIds, input);
   if (!input.email) return;
   const users = await tx.user.findMany({ where: { id: { in: userIds }, active: true }, select: { email: true } });
   if (!users.length) return;
@@ -98,4 +103,25 @@ export async function deliverPendingOutbox(limit = 20, now: Date = new Date()): 
     });
   }
   return { processed: pending.length };
+}
+
+/**
+ * Sends the Web Push after the response, and only if the notification was
+ * really saved (the surrounding transaction may still roll back).
+ */
+function schedulePush(userIds: string[], input: { kind: string; title: string; body?: string; link?: string }) {
+  const since = new Date(Date.now() - 60_000);
+  const send = async () => {
+    const saved = await db.notification.count({
+      where: { userId: { in: userIds }, kind: input.kind, title: input.title, createdAt: { gte: since } },
+    });
+    if (!saved) return;
+    await pushToUsers(userIds, { title: input.title, body: input.body, link: input.link, tag: input.kind });
+  };
+  try {
+    after(send);
+  } catch {
+    // Outside a request (scripts): send right away instead.
+    void send().catch(() => {});
+  }
 }

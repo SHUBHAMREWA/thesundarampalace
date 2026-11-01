@@ -34,6 +34,7 @@ model User {
   roles         UserRole[]
   assignedLeads Lead[]            @relation("LeadAssignee")
   notifications Notification[]
+  pushSubscriptions  PushSubscription[]
   ownedBookings Booking[]         @relation("BookingOwner")
   subEvents     BookingSubEvent[] @relation("SubEventAssignee")
   tasks         Task[]            @relation("TaskAssignee")
@@ -617,6 +618,23 @@ model Notification {
 
   @@index([userId, readAt, createdAt])
   @@map("notification")
+}
+
+/// A browser or installed app (phone/laptop) where a staff member turned on
+/// notifications. Web Push sends staff alerts here, even when the CRM is closed.
+model PushSubscription {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  lastUsedAt DateTime? @db.Timestamptz(3)
+
+  @@index([userId])
+  @@map("push_subscription")
 }
 
 /// Outgoing email/WhatsApp/SMS, and the message log. Never claims "sent"

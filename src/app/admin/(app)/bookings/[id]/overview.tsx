@@ -595,6 +595,21 @@ export async function Overview({
                   />
                 </CardHeader>
               </summary>
+              {booking.parties.length ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border bg-bg px-6 py-3">
+                  <p className="text-sm text-text-muted">
+                    {idDocs
+                      ? "One ZIP: a details page (names, phones, email, ID list) and every ID document and photo."
+                      : "One ZIP with the bride and groom details. Your role can't download their ID documents."}
+                  </p>
+                  <Button asChild size="sm" variant="outline">
+                    <a href={`/api/bookings/${booking.id}/bride-groom`}>
+                      <Download aria-hidden="true" /> Download all details
+                      {idDocs ? " and documents" : ""}
+                    </a>
+                  </Button>
+                </div>
+              ) : null}
               <CardContent className="mt-4 grid gap-6 md:grid-cols-2">
                 {(["BRIDE", "GROOM"] as const).map((role) => {
                   const party = booking.parties.find((p) => p.role === role);

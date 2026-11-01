@@ -9,6 +9,9 @@ import { formatIST } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { requireUser } from "@/server/auth/session";
 
+import { PushToggle } from "@/components/crm/push-toggle";
+import { env } from "@/lib/env";
+
 import { MarkReadButton } from "./mark-read";
 
 // CRM pages read the session on every request (see src/app/admin/layout.tsx).
@@ -32,6 +35,9 @@ export default async function NotificationsPage() {
         crumbs={[{ label: "Dashboard", href: "/admin" }, { label: "Notifications" }]}
         actions={unread ? <MarkReadButton notificationId={null} label="Mark all as read" /> : null}
       />
+      <div className="mb-6">
+        <PushToggle publicKey={env().NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null} />
+      </div>
       {notifications.length ? (
         <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
           {notifications.map((n) => (
