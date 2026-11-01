@@ -33,6 +33,10 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 7, // absolute: 7 days
     updateAge: 60 * 60 * 8, // refreshed at most every 8 hours of use
+    // Speed: the session is checked against the database at most every 5 minutes;
+    // in between, a signed cookie is trusted. Deactivated staff are still blocked
+    // on every request (getCurrentUser reads `active`); signing out clears it at once.
+    cookieCache: { enabled: true, maxAge: 5 * 60 },
   },
   rateLimit: {
     enabled: true,

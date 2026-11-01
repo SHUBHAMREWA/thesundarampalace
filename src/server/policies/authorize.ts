@@ -23,6 +23,23 @@ export type UserAccess = {
   requires2fa: boolean;
 };
 
+/** Roles and effective permissions from a user's roles (as loaded with their permissions). */
+export function accessFromRoles(
+  roles: { key: string; requires2fa: boolean; permissions: { permissionKey: string }[] }[],
+): UserAccess {
+  const permissions = new Set<PermissionKey>();
+  for (const role of roles) {
+    for (const { permissionKey } of role.permissions) {
+      if (isPermissionKey(permissionKey)) permissions.add(permissionKey);
+    }
+  }
+  return {
+    roles: roles.map((r) => r.key),
+    permissions,
+    requires2fa: roles.some((r) => r.requires2fa),
+  };
+}
+
 /** Roles and effective permissions for a user, read from the database. */
 export async function loadUserAccess(userId: string): Promise<UserAccess> {
   const rows = await db.userRole.findMany({
@@ -37,17 +54,7 @@ export async function loadUserAccess(userId: string): Promise<UserAccess> {
       },
     },
   });
-  const permissions = new Set<PermissionKey>();
-  for (const { role } of rows) {
-    for (const { permissionKey } of role.permissions) {
-      if (isPermissionKey(permissionKey)) permissions.add(permissionKey);
-    }
-  }
-  return {
-    roles: rows.map((r) => r.role.key),
-    permissions,
-    requires2fa: rows.some((r) => r.role.requires2fa),
-  };
+  return accessFromRoles(rows.map((r) => r.role));
 }
 
 export type Actor = { id: string; permissions: ReadonlySet<PermissionKey> };

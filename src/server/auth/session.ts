@@ -1,12 +1,13 @@
 import "server-only";
 
 import { headers } from "next/headers";
+import { cache } from "react";
 import { forbidden, redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth/server";
 import { db } from "@/lib/db";
 import type { PermissionKey } from "@/lib/permissions/registry";
-import { loadUserAccess, type Actor } from "@/server/policies/authorize";
+import { accessFromRoles, type Actor } from "@/server/policies/authorize";
 
 export type CurrentUser = Actor & {
   name: string;
@@ -16,16 +17,39 @@ export type CurrentUser = Actor & {
   requires2fa: boolean;
 };
 
-/** The signed-in staff member, or null. Reads the request, so call it inside <Suspense>. */
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+/**
+ * The signed-in staff member, or null. Reads the request, so call it inside <Suspense>.
+ * Loaded once per request (React `cache`): the layout, the page and its
+ * sections all share it, and the user, roles and permissions come back in a
+ * single query. `active` is still read from the database every request, so
+ * deactivating someone takes effect immediately.
+ */
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
   const user = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, email: true, active: true, twoFactorEnabled: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      active: true,
+      twoFactorEnabled: true,
+      roles: {
+        select: {
+          role: {
+            select: {
+              key: true,
+              requires2fa: true,
+              permissions: { select: { permissionKey: true } },
+            },
+          },
+        },
+      },
+    },
   });
   if (!user || !user.active) return null;
-  const access = await loadUserAccess(user.id);
+  const access = accessFromRoles(user.roles.map((r) => r.role));
   return {
     id: user.id,
     name: user.name,
@@ -35,7 +59,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     permissions: access.permissions,
     requires2fa: access.requires2fa,
   };
-}
+});
 
 /**
  * For CRM pages: redirects to sign-in when signed out, and to the 2FA setup
