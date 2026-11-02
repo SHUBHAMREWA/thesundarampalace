@@ -22,7 +22,8 @@ export async function SiteFooter({ locale }: { locale: string }) {
   ].filter((s): s is { href: string; label: string } => !!s.href);
 
   return (
-    <footer className="bg-primary-deep pt-16 pb-10 text-sm text-blush">
+    // Phones: extra room at the bottom for the bottom menu.
+    <footer className="bg-primary-deep pt-16 pb-28 text-sm text-blush md:pb-10">
       <Container>
         <div className="grid gap-10 md:grid-cols-3">
           <div>

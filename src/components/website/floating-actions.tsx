@@ -11,8 +11,8 @@ import { trackConversion } from "./tracked-link";
 type Action = { href: string; label: string };
 
 /**
- * Floating location and WhatsApp buttons, fixed bottom-right on every screen
- * size. Both hide while any element marked `data-hide-floating` (e.g. a
+ * Floating location and WhatsApp buttons, fixed bottom-right on tablets and
+ * desktops (phones have them in the bottom menu). Both hide while any element marked `data-hide-floating` (e.g. a
  * form's submit button) is on screen, so they never cover it.
  */
 export function FloatingActions({ whatsapp, directions }: { whatsapp: Action | null; directions: Action | null }) {
@@ -42,7 +42,8 @@ export function FloatingActions({ whatsapp, directions }: { whatsapp: Action | n
   return (
     <div
       className={cn(
-        "fixed right-4 bottom-4 z-40 flex flex-col items-center gap-3 transition-opacity md:right-6 md:bottom-6",
+        // Phones use the bottom menu (WhatsApp and Location) instead.
+        "fixed right-6 bottom-6 z-40 hidden flex-col items-center gap-3 transition-opacity md:flex",
         hidden ? "pointer-events-none opacity-0" : "opacity-100",
       )}
     >

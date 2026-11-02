@@ -6,6 +6,7 @@ import { currentLocale } from "@/i18n/current";
 import "../../globals.css";
 import { fontVariables } from "../../fonts";
 import { FloatingActions } from "@/components/website/floating-actions";
+import { MobileBottomNav } from "@/components/website/mobile-bottom-nav";
 import { SiteFooter } from "@/components/website/site-footer";
 import { SiteHeader } from "@/components/website/site-header";
 import { UtmCapture } from "@/components/website/utm-capture";
@@ -42,12 +43,16 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function WebsiteLayout({ children }: LayoutProps<"/[locale]">) {
   const locale = await currentLocale();
-  const [tr, cta, contact] = await Promise.all([
+  const [tr, cta, bottom, contact] = await Promise.all([
     getTranslations("site"),
     getTranslations("cta"),
+    getTranslations("bottomNav"),
     getPublicContact(),
   ]);
   const directions = directionsUrl(contact);
+  const whatsappHref = contact.whatsapp
+    ? whatsappLink(contact.whatsapp, t(contact.contact.whatsappMessage, locale))
+    : null;
   return (
     <html lang={locale} className={fontVariables}>
       <body className="flex min-h-dvh flex-col">
@@ -66,8 +71,19 @@ export default async function WebsiteLayout({ children }: LayoutProps<"/[locale]
           </main>
           <SiteFooter locale={locale} />
           <FloatingActions
-            whatsapp={contact.whatsapp ? { href: whatsappLink(contact.whatsapp, t(contact.contact.whatsappMessage, locale)), label: cta("whatsapp") } : null}
+            whatsapp={whatsappHref ? { href: whatsappHref, label: cta("whatsapp") } : null}
             directions={directions ? { href: directions, label: cta("directions") } : null}
+          />
+          <MobileBottomNav
+            whatsappHref={whatsappHref}
+            directionsHref={directions}
+            labels={{
+              nav: bottom("label"),
+              home: bottom("home"),
+              whatsapp: bottom("whatsapp"),
+              location: bottom("location"),
+              book: bottom("book"),
+            }}
           />
         </NextIntlClientProvider>
       </body>
