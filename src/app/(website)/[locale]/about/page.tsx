@@ -78,9 +78,10 @@ export default async function AboutPage() {
               url: site,
               address: {
                 "@type": "PostalAddress",
-                streetAddress: "Rathara–Silpara Ring Road, near Gudh Road Flyover, Lohi",
+                streetAddress: "Near Garg Feelings, Lohi",
                 addressLocality: "Rewa",
                 addressRegion: "Madhya Pradesh",
+                postalCode: "486005",
                 addressCountry: "IN",
               },
               amenityFeature: VENUE.map((v) => ({ "@type": "LocationFeatureSpecification", name: tr(`venue.${v.key}`), value: true })),
