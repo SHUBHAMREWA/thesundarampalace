@@ -79,6 +79,7 @@ import {
 import { labelOf, lookupOptions } from "@/server/services/lookups";
 import { getSettings } from "@/server/services/settings";
 
+import { BrideGroomPrint } from "./bride-groom-print";
 import { MenuForm, type MenuPackageOption } from "./menu-form";
 import { SubEventForm } from "./sub-event-form";
 
@@ -599,15 +600,10 @@ export async function Overview({
                 <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border bg-bg px-6 py-3">
                   <p className="text-sm text-text-muted">
                     {idDocs
-                      ? "One ZIP: a details page (names, phones, email, ID list) and every ID document and photo."
-                      : "One ZIP with the bride and groom details. Your role can't download their ID documents."}
+                      ? "One PDF: bride on the left, groom on the right, with their details and documents. Choose “Save as PDF” in the print dialog."
+                      : "One PDF: bride on the left, groom on the right, with their details. Your role can't view their ID documents."}
                   </p>
-                  <Button asChild size="sm" variant="outline">
-                    <a href={`/api/bookings/${booking.id}/bride-groom`}>
-                      <Download aria-hidden="true" /> Download all details
-                      {idDocs ? " and documents" : ""}
-                    </a>
-                  </Button>
+                  <BrideGroomPrint bookingId={booking.id} withDocuments={Boolean(idDocs)} />
                 </div>
               ) : null}
               <CardContent className="mt-4 grid gap-6 md:grid-cols-2">

@@ -1,20 +1,28 @@
 import { getApiUser, requestMeta } from "@/server/auth/session";
-import { errorResponse, privateFileHeaders } from "@/server/documents/http";
+import { errorResponse } from "@/server/documents/http";
 import { UnauthenticatedError } from "@/server/policies/authorize";
-import { brideGroomPack } from "@/server/services/bride-groom-pack";
+import { brideGroomSheet } from "@/server/services/bride-groom-pack";
 
 /**
- * Downloads one ZIP with the booking's bride and groom details and their ID
- * documents and photos. Permission-checked and audit-logged; never cached.
+ * The booking's bride and groom sheet (bride left, groom right, with their
+ * documents), as an A4 page the CRM prints / saves as PDF from a hidden frame.
+ * Permission-checked and audit-logged; never cached. Framing and the
+ * no-script CSP come from next.config.ts (documentPreviewHeaders).
  */
 export async function GET(_request: Request, { params }: RouteContext<"/api/bookings/[id]/bride-groom">) {
   try {
     const user = await getApiUser();
     if (!user) throw new UnauthenticatedError();
     const { id } = await params;
-    const pack = await brideGroomPack(user, id, await requestMeta());
-    return new Response(new Uint8Array(pack.bytes), {
-      headers: privateFileHeaders("application/zip", pack.fileName, "attachment"),
+    const html = await brideGroomSheet(user, id, await requestMeta());
+    return new Response(html, {
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "private, no-store",
+        "x-content-type-options": "nosniff",
+        "x-robots-tag": "noindex, nofollow",
+        "referrer-policy": "no-referrer",
+      },
     });
   } catch (error) {
     return errorResponse(error);

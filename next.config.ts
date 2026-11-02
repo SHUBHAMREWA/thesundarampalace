@@ -37,6 +37,7 @@ const nextConfig: NextConfig = {
       "./src/app/globals.css",
     ],
     "/admin/*": ["./src/lib/pdf/fonts/*.woff2", "./src/app/globals.css"],
+    "/api/bookings/*": ["./src/lib/pdf/fonts/*.woff2", "./src/app/globals.css"],
     "/api/food-menu/*": [
       "./src/lib/pdf/fonts/*.woff2",
       "./src/app/globals.css",
@@ -49,6 +50,7 @@ const nextConfig: NextConfig = {
       // The document preview is framed by the CRM (later rules override earlier ones).
       { source: "/api/documents/preview", headers: documentPreviewHeaders() },
       { source: "/api/food-menu/preview", headers: documentPreviewHeaders() },
+      { source: "/api/bookings/:id/bride-groom", headers: documentPreviewHeaders() },
       // Always fetch the newest service worker (PWA).
       {
         source: "/sw.js",
