@@ -92,9 +92,8 @@ export async function createBookingAction(
 ): Promise<ActionState> {
   return runAction(async () => {
     const actor = await currentActor();
+    // The booking amount is optional: the date is held even before a price is agreed.
     const input = createBookingSchema.parse(formObject(form));
-    if (!input.bookingAmount)
-      fieldError("bookingAmount", "Enter the booking amount");
     const advance =
       input.advanceAmount && Number(input.advanceAmount) > 0
         ? input.advanceAmount

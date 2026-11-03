@@ -219,8 +219,7 @@ export default async function NewBookingPage({
                 label="Booking amount (₹)"
                 inputMode="decimal"
                 placeholder="e.g. 350000"
-                hint="What the booking is agreed for."
-                required
+                hint="What the booking is agreed for. Optional: add it later from Edit details."
               />
               {can(user, "payments.create") ? (
                 <>
