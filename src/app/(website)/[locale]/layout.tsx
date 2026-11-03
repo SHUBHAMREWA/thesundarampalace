@@ -12,7 +12,7 @@ import { SiteHeader } from "@/components/website/site-header";
 import { UtmCapture } from "@/components/website/utm-capture";
 import { ServiceWorker } from "@/components/shared/service-worker";
 import { routing } from "@/i18n/routing";
-import { whatsappLink } from "@/lib/contact/links";
+import { telLink, whatsappLink } from "@/lib/contact/links";
 import { directionsUrl } from "@/lib/contact/map";
 import { env } from "@/lib/env";
 import { t } from "@/lib/i18n/localized";
@@ -76,11 +76,16 @@ export default async function WebsiteLayout({ children }: LayoutProps<"/[locale]
           />
           <MobileBottomNav
             whatsappHref={whatsappHref}
+            callHref={contact.phone ? telLink(contact.phone) : null}
+            emailHref={contact.email ? `mailto:${contact.email}` : null}
             directionsHref={directions}
             labels={{
               nav: bottom("label"),
               home: bottom("home"),
+              contact: bottom("contact"),
               whatsapp: bottom("whatsapp"),
+              call: bottom("call"),
+              email: bottom("email"),
               location: bottom("location"),
               book: bottom("book"),
             }}

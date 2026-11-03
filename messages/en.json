@@ -218,7 +218,10 @@
   "bottomNav": {
     "label": "Quick actions",
     "home": "Home",
+    "contact": "Contact",
     "whatsapp": "WhatsApp",
+    "call": "Call",
+    "email": "Email",
     "location": "Location",
     "book": "Book"
   }
