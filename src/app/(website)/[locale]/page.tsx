@@ -198,7 +198,7 @@ async function HomeSectionBlock({
                 </p>
               ) : null}
               <div className="mt-10">
-                <ContactActions contact={contact} locale={locale} inverted />
+                <ContactActions contact={contact} locale={locale} inverted showEmail />
               </div>
             </Container>
             {/* Scroll-down arrow, bottom centre (above the slideshow dots when there are slides). */}

@@ -1,4 +1,4 @@
-import { Phone } from "lucide-react";
+import { Mail, Phone } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 
 import { WhatsAppIcon } from "@/components/shared/whatsapp-icon";
@@ -11,19 +11,21 @@ import type { PublicContact } from "@/server/cms/queries";
 import { TrackedLink } from "./tracked-link";
 
 /**
- * "Plan your event" plus WhatsApp and call buttons — the latter two appear
- * only once the business has entered those numbers (no dead buttons).
+ * "Plan your event" plus WhatsApp, call and (optionally) email buttons — each
+ * appears only once the business has entered it (no dead buttons).
  */
 export async function ContactActions({
   contact,
   locale,
   inverted = false,
   showPlan = true,
+  showEmail = false,
 }: {
   contact: PublicContact;
   locale: string;
   inverted?: boolean;
   showPlan?: boolean;
+  showEmail?: boolean;
 }) {
   const tr = await getTranslations("cta");
   const message = t(contact.contact.whatsappMessage, locale);
@@ -56,6 +58,14 @@ export async function ContactActions({
             <Phone aria-hidden="true" />
             {tr("call")}
           </TrackedLink>
+        </Button>
+      ) : null}
+      {showEmail && contact.email ? (
+        <Button asChild size="lg" variant="outline" className={secondary}>
+          <a href={`mailto:${contact.email}`}>
+            <Mail aria-hidden="true" />
+            {tr("email")}
+          </a>
         </Button>
       ) : null}
     </div>
